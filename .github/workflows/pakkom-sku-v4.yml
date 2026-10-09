@@ -1,0 +1,109 @@
+name: Check product identity and apply bounded v4 fix
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - sku-identity-v4.js
+      - .github/workflows/pakkom-sku-v4.yml
+permissions:
+  contents: write
+concurrency:
+  group: pakkom-bounded-ui-fix
+  cancel-in-progress: false
+jobs:
+  identity:
+    if: github.repository == 'uorlovskaya-prog/pakkom-radar'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Apply only the verified identity patch; preserve source data
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json, re, subprocess
+          p = Path('index.html')
+          before = p.read_text()
+          guard = Path('sku-identity-v4.js').read_text().rstrip()
+          def blob(s):
+              raw=s.encode()
+              return hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+          pattern = r'/\* PAKKOM_SKU_IDENTITY_GUARD_V2_BEGIN.*?/\* PAKKOM_SKU_IDENTITY_GUARD_V2_END \*/'
+          if 'PAKKOM_SKU_IDENTITY_GUARD_V2_BEGIN' in before:
+              assert blob(before)=='ca864f5762c24401ec2ad27ff86dadcc2fccbe72', 'STOP: newer index; do not overwrite other work'
+              after,count=re.subn(pattern,lambda _:guard,before,flags=re.S)
+              assert count==1
+              old='sku:r.sku,nmId:r.nmId'
+              assert after.count(old)==1
+              after=after.replace(old,'...skuMetaOf(r)')
+              assert blob(after)=='ab4a8a6751f84a41ef3e9193ea7816564e9e0a9b', 'STOP: unexpected output'
+              data=lambda s:re.search(r'<script id="data" type="application/json">(.*?)</script>',s,re.S).group(1)
+              assert data(before)==data(after), 'STOP: source DATA changed'
+              assert len(json.loads(data(after))['daily'])==6597
+              assert re.findall(r'<style.*?</style>',before,re.S)==re.findall(r'<style.*?</style>',after,re.S)
+              p.write_text(after)
+              print('PASS: identity-only patch; DATA and styles unchanged')
+          else:
+              after=before
+          embedded=re.search(r'/\* PAKKOM_SKU_IDENTITY_GUARD_V4_BEGIN.*?/\* PAKKOM_SKU_IDENTITY_GUARD_V4_END \*/',after,re.S)
+          assert embedded and embedded.group(0)==guard, 'STOP: missing or inconsistent identity guard'
+          scripts=re.findall(r'<script>(.*?)</script>',after,re.S)
+          assert scripts
+          for script in scripts:
+              subprocess.run(['node','--check'],input=script,text=True,check=True)
+          PY
+      - name: Regression tests for IDs, names, search, all history and non-duplication
+        shell: bash
+        run: |
+          node <<'JS'
+          const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+          const html=fs.readFileSync('index.html','utf8');
+          const data=JSON.parse(html.match(/<script id="data" type="application\/json">([\s\S]*?)<\/script>/)[1]);
+          const original=JSON.stringify(data);
+          const ctx={DATA:data};vm.createContext(ctx);vm.runInContext(fs.readFileSync('sku-identity-v4.js','utf8'),ctx);
+          const key=r=>ctx.canonicalSkuKey(r), seen=new Set(),groups=new Map();
+          for(const r of data.daily){
+            const k=key(r),dk=r.iso+'|'+k;
+            assert(!seen.has(dk),'Duplicate date/product: '+dk);seen.add(dk);
+            if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r);
+          }
+          for(const [name,ids] of vm.runInContext('[...SKU_IDENTITY.byName]',ctx))assert.equal(ids.size,1,'Ambiguous normalized title: '+name);
+          for(const [k,rows] of groups)if(k.startsWith('NMID:'))for(const r of rows)assert(ctx.matchesSkuSearch(r,k.slice(5)),'ID search lost historical rows');
+          const yellow=data.daily.filter(r=>r.sku==='скатерти 110х140 2 шт желт бел');
+          assert(yellow.length>0);assert.equal(new Set(yellow.map(key)).size,1);assert.equal(key(yellow[0]),'NMID:1748180510');
+          for(const q of ['скатерти 110x140 2 шт желт бел','СКАТЕРТИ  110 Х 140 2шт желт бел','1748180510','1748180510.0']){
+            const hits=data.daily.filter(r=>ctx.matchesSkuSearch(r,q));
+            assert.equal(hits.length,groups.get('NMID:1748180510').length,q);assert.equal(new Set(hits.map(key)).size,1);
+          }
+          for(const q of ['пакеты рулон 30x40 100 шт бел пищевые','1721217247','1721217247.0']){
+            const hits=data.daily.filter(r=>ctx.matchesSkuSearch(r,q));assert(hits.length>0);assert.equal(new Set(hits.map(key)).size,1);
+          }
+          const make=(sku,nmId,extra={})=>({sku,nmId:nmId||'',iso:'2026-10-09',...extra});
+          const sample=[make('тест 20х30 2 шт желт бел','123'),make('тест 20x30 2шт желт бел'),make('тест 20х30 6 шт желт бел','456'),make('тест 20х30 2 шт син бел','789'),make('тест 20х40 2 шт желт бел','890')];
+          const f=ctx.createSkuIdentity(sample);assert.equal(f.key(sample[0]),f.key(sample[1]));
+          for(let i=2;i<sample.length;i++)assert.notEqual(f.key(sample[0]),f.key(sample[i]));
+          assert.equal(f.key(make('',123)),'NMID:123');assert.equal(f.key(make('тест 20х30 2 шт желт бел',null,{skuKey:'123.0'})),'NMID:123');
+          assert.throws(()=>ctx.createSkuIdentity([make('одинаковое название','1'),make('одинаковое название','2'),make('одинаковое название')]));
+          assert.throws(()=>ctx.createSkuIdentity([make('x','123',{skuKey:'NMID:456'})]));
+          const reversed=ctx.createSkuIdentity([...data.daily].reverse());for(const r of data.daily)assert.equal(key(r),reversed.key(r));
+          assert.equal(JSON.stringify(data),original,'Identity must not mutate source rows');
+          for(const field of ['ordersQty','ordersRub','buyoutsQty','ads']){
+            const a=data.daily.reduce((s,r)=>s+(r[field]||0),0);
+            const b=[...groups.values()].reduce((s,rows)=>s+rows.reduce((v,r)=>v+(r[field]||0),0),0);
+            assert(Math.abs(a-b)<0.00001,'Grouping changed total '+field);
+          }
+          console.log('PASS: '+data.daily.length+' unchanged rows, '+groups.size+' product groups; names/IDs linked; no duplicate product dates; search and size/colour/quantity protections pass');
+          JS
+      - name: Commit only the bounded initial fix without force push
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- index.html
+          git commit -m 'Unify 14 name/ID product pairs, preserving all 6597 source rows'
+          git push origin HEAD:main
