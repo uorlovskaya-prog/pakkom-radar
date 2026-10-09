@@ -1,0 +1,64 @@
+name: Publish isolated warehouse dashboard
+on:
+  push:
+    branches: [main]
+    paths:
+      - sklad-src/release.json
+      - sklad-src/build.py
+      - .github/workflows/warehouse-site.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: pakkom-warehouse-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'uorlovskaya-prog/pakkom-radar'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the publication branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: main
+      - name: Build and check the warehouse page without changing Radar
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum index.html sku-identity-v4.js README.md > "$RUNNER_TEMP/radar-preserved.sha256"
+          python sklad-src/build.py
+          sha256sum --check "$RUNNER_TEMP/radar-preserved.sha256"
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile
+          html = Path('sklad/index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script>([\s\S]*?)</script>', html)
+          if not scripts:
+              raise RuntimeError('No application JavaScript found')
+          for script in scripts:
+              with tempfile.NamedTemporaryFile(mode='w', suffix='.js', encoding='utf-8') as f:
+                  f.write(script)
+                  f.flush()
+                  subprocess.run(['node', '--check', f.name], check=True)
+          print('Application syntax PASS')
+          PY
+      - name: Commit only the isolated warehouse output
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -- sklad/index.html sklad/version.json
+          python - <<'PY'
+          import subprocess
+          files = subprocess.check_output(['git', 'diff', '--cached', '--name-only'], text=True).splitlines()
+          if not set(files).issubset({'sklad/index.html', 'sklad/version.json'}):
+              raise RuntimeError('Unexpected staged path')
+          PY
+          if git diff --cached --quiet; then
+            echo 'The verified warehouse release is already committed.'
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'Publish checked warehouse dashboard; leave Radar unchanged'
+            git push origin HEAD:main
+          fi
