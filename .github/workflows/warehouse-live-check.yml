@@ -1,0 +1,53 @@
+name: Verify public warehouse website
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/warehouse-live-check.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Verify the actual public URL, exact page bytes and published data
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json, re, time, urllib.request
+          url = 'https://uorlovskaya-prog.github.io/pakkom-radar/sklad/'
+          expected = 'c4cb47b05f7cb7215e2057efaee4c21568a78c140913b0de3de481080d8ee91f'
+          def get(address):
+              request = urllib.request.Request(address, headers={'Cache-Control': 'no-cache', 'User-Agent': 'Pakkom-Warehouse-Live-Check'})
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  assert response.status == 200, response.status
+                  return response.read()
+          for attempt in range(10):
+              try:
+                  content = get(url + '?release=warehouse-2026-10-09-v1')
+                  assert hashlib.sha256(content).hexdigest() == expected, 'Published page differs from approved HTML'
+                  version = json.loads(get(url + 'version.json?release=warehouse-2026-10-09-v1'))
+                  assert version['htmlSHA256'] == expected
+                  assert version['rows'] == 3533 and version['qty'] == 38150
+                  assert version['missingNormQty'] == 0
+                  text = content.decode('utf-8')
+                  match = re.search(r'<script type="application/json" id="dashboardData">([\s\S]*?)</script>', text)
+                  assert match, 'Data block is missing'
+                  data = json.loads(match.group(1))
+                  assert len(data['records']) == 3533
+                  assert sum(r['qty'] for r in data['records']) == 38150
+                  assert sum(r['seconds'] for r in data['records']) == 1990050
+                  assert all(r['normSeconds'] > 0 for r in data['records'])
+                  assert "compareMode:'all'" in text
+                  assert 'На общих датах результат выше' not in text
+                  assert '<title>Пакком — склад' in text
+                  print('LIVE WEBSITE PASS: ' + url)
+                  print('HTTP 200; exact approved HTML; 3533 rows; 38150 packages; no missing norms; own working days comparison by default.')
+                  break
+              except Exception as error:
+                  if attempt == 9:
+                      raise
+                  print('Waiting for public deployment/cache: ' + str(error))
+                  time.sleep(10)
+          PY
