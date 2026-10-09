@@ -1,0 +1,9 @@
+{
+  "version": "warehouse-2026-10-09-v1",
+  "parts": ["bundle-01.b64", "bundle-02.b64", "bundle-03.b64", "bundle-04.b64", "bundle-05.b64", "bundle-06.b64", "bundle-07.b64", "bundle-08.b64", "bundle-09.b64", "bundle-10.b64"],
+  "gzipSHA256": "d662995dbddf04286ad67a779f221059b10f50a0e15313273b7d8b4028553950",
+  "htmlSHA256": "c4cb47b05f7cb7215e2057efaee4c21568a78c140913b0de3de481080d8ee91f",
+  "expected": {"rows": 3533, "qty": 38150, "seconds": 1990050},
+  "sourceSHA256": "fc486d93a18dc81fbf6123e2f247cd11edcd35d6430494f7da349e94755011e4",
+  "masterSHA256": "4b91d96a67fffb6f2f2cc1a3d7fdf2cff583299882979a1620b1bf835d27b32a"
+}
