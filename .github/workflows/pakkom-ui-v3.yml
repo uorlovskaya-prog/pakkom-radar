@@ -1,0 +1,127 @@
+name: Apply bounded dashboard UI fix v3
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/pakkom-ui-v3.yml]
+permissions:
+  contents: write
+concurrency:
+  group: pakkom-bounded-ui-fix
+  cancel-in-progress: false
+jobs:
+  patch:
+    if: github.repository == 'uorlovskaya-prog/pakkom-radar'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Apply only the verified patch and verify unchanged data
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json, re, subprocess
+          p = Path('index.html')
+          before = p.read_bytes()
+          def blob(data):
+              return hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+          expected_before = '0cb6a485aa2554179bebc15574def5942a7c9b66'
+          expected_after = 'ca864f5762c24401ec2ad27ff86dadcc2fccbe72'
+          if blob(before) == expected_after:
+              print('Already applied; no changes.')
+              raise SystemExit(0)
+          assert blob(before) == expected_before, 'STOP: index.html changed; do not overwrite newer work'
+          patch = r'''--- a/index.html
+          +++ b/index.html
+          @@ -38,5 +38,5 @@
+           <body>
+           <div class="wrap">
+          -<header><div><h1>Пакком — SKU Radar</h1><div class="sub">Базовый период + отдельные сигналы последних дней</div></div><div class="meta">Без общей ЧП бизнеса<br>Данные до <b id="through"></b></div></header>
+          +<header><div><h1>Пакком — SKU Radar</h1><div class="sub">Базовый период + отдельные сигналы последних дней</div></div><div class="meta">Данные по <b id="through"></b></div></header>
+           
+           <div class="notice" id="basePeriodInfo"><b>Базовый период:</b> с 01.09 по последнюю загруженную дату — <span id="lastLoadedDate"></span>.</div>
+          @@ -85,4 +85,5 @@
+           <script>
+           'use strict';
+          +/* PAKKOM_UI_V3: keep audit/source checks in data and tests, not in the management interface. */
+           const DATA=JSON.parse(document.getElementById('data').textContent),$=id=>document.getElementById(id);
+           const nf=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}),pf=new Intl.NumberFormat('ru-RU',{style:'percent',maximumFractionDigits:1});
+          @@ -100,8 +101,51 @@
+            s.profitPerBuyout=pbw?pb/pbw:null;s.roi=roiw?roi/roiw:null;s.cpoStd=std;s.cpoMax=mx;const ds=new Set(rows.map(r=>r.date)).size;s.avgOrdersDay=ds?s.ordersQty/ds:null;return s;
+           }
+          -function rowKey(r){return r.skuKey||r.nmId||r.sku}
+          +/* PAKKOM_SKU_IDENTITY_GUARD_V2_BEGIN
+          +   Keep this block when appending daily data. Do not regenerate the interface.
+          +   Regression cases: 1721217247 (30x40 bags), 1556365321 (kraft bags).
+          +   A title is not an unrestricted product identifier; do not fuzzy-merge SKUs.
+          +*/
+          +const APPROVED_SKU_IDS=Object.freeze({
+          + 'пакеты рулон 30х40 100 шт бел пищевые':'1721217247',
+          + 'пакеты крафт 195х90х340 v-дно 50 шт':'1556365321'
+          +});
+          +function canonicalNmId(value){
+          + if(typeof value==='number'&&!Number.isSafeInteger(value))return '';
+          + const match=/^([0-9]+)(?:\.0+)?$/.exec(String(value??'').trim());
+          + if(!match)return '';
+          + const id=match[1].replace(/^0+(?=\d)/,'');
+          + return id==='0'?'':id;
+          +}
+          +function normalizeSkuSearch(value){
+          + return String(value??'').normalize('NFKC').toLowerCase()
+          +  .replace(/(\d)\s*[xх×*]\s*(?=\d)/g,'$1х')
+          +  .replace(/\s+/g,' ').trim();
+          +}
+          +function computeCanonicalSkuKey(row){
+          + const supplied=String(row.skuKey??'').trim();
+          + const id=canonicalNmId(row.nmId)||(/^NMID:/i.test(supplied)?canonicalNmId(supplied.slice(5)):'')
+          +  ||APPROVED_SKU_IDS[normalizeSkuSearch(row.sku)]||'';
+          + return id?'NMID:'+id:supplied||('NAME:'+String(row.sku??'').trim().toLowerCase().replace(/\s+/g,' '));
+          +}
+          +const SKU_KEY_CACHE=new WeakMap();
+          +function canonicalSkuKey(row){
+          + const cached=SKU_KEY_CACHE.get(row);
+          + if(cached&&cached.nmId===row.nmId&&cached.skuKey===row.skuKey&&cached.sku===row.sku)return cached.key;
+          + const key=computeCanonicalSkuKey(row);
+          + SKU_KEY_CACHE.set(row,{nmId:row.nmId,skuKey:row.skuKey,sku:row.sku,key});
+          + return key;
+          +}
+          +function matchesSkuSearch(row,query){
+          + let needle=normalizeSkuSearch(query);
+          + if(/^\d+\.0+$/.test(needle))needle=canonicalNmId(needle);
+          + const haystack=normalizeSkuSearch(String(row.sku??'')+' '+canonicalSkuKey(row));
+          + return haystack.includes(needle);
+          +}
+          +/* PAKKOM_SKU_IDENTITY_GUARD_V2_END */
+          +
+          +function rowKey(r){return canonicalSkuKey(r)}
+           function groups(rows){const m=new Map();rows.forEach(r=>{const k=rowKey(r);if(!m.has(k))m.set(k,{key:k,sku:r.sku,nmId:r.nmId,category:r.category,subcategory:r.subcategory,rows:[]});m.get(k).rows.push(r)});return [...m.values()].map(g=>({...g,m:agg(g.rows)}))}
+           function baseDates(){return dates.filter(d=>d>=state.from&&d<=state.to)}
+          -function filtersOk(r){return (state.cat==='all'||r.category===state.cat)&&(state.sub==='all'||r.subcategory===state.sub)&&(!state.search||(r.sku+' '+r.nmId).toLowerCase().includes(state.search.toLowerCase()))}
+          +function filtersOk(r){return (state.cat==='all'||r.category===state.cat)&&(state.sub==='all'||r.subcategory===state.sub)&&(!state.search||matchesSkuSearch(r,state.search))}
+           function baseRows(){const ds=new Set(baseDates());return DATA.daily.filter(r=>ds.has(r.iso)&&filtersOk(r))}
+           function windowPair(nDays){
+          '''
+          subprocess.run(['git','apply','--check','-'], input=patch, text=True, check=True)
+          subprocess.run(['git','apply','-'], input=patch, text=True, check=True)
+          after = p.read_bytes()
+          assert blob(after) == expected_after, 'STOP: unexpected patch result'
+          def data(raw):
+              return re.search(rb'<script id="data" type="application/json">(.*?)</script>', raw, re.S).group(1)
+          assert data(before) == data(after), 'STOP: financial data must remain byte-identical'
+          assert len(json.loads(data(after))['daily']) == 6597
+          scripts = re.findall(r'<script>(.*?)</script>', after.decode(), re.S)
+          for script in scripts:
+              subprocess.run(['node','--check'], input=script, text=True, check=True)
+          print('PASS: exact UI patch; 6597 rows and DATA unchanged; JavaScript syntax valid')
+          PY
+      - name: Commit the bounded change without force push
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- index.html
+          git commit -m 'Fix SKU search and remove technical header note; preserve all data'
+          git push origin HEAD:main
