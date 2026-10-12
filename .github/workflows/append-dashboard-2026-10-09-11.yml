@@ -1,0 +1,86 @@
+name: Append dashboard data through 2026-10-11
+on:
+  push:
+    branches: [main]
+    paths:
+      - data/append-2026-10-09-11.json.gz.b64
+permissions:
+  contents: write
+concurrency:
+  group: pakkom-dashboard-data-append
+  cancel-in-progress: false
+jobs:
+  append:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Rebase onto latest main
+        run: git pull --rebase origin main
+      - name: Append only new daily data and verify invariants
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import base64,gzip,json,re,subprocess
+          p=Path('index.html')
+          raw=p.read_text(encoding='utf-8')
+          before_outside=re.sub(r'(<script id="data" type="application/json">).*?(</script>)',r'\1__DATA__\2',raw,flags=re.S)
+          m=re.search(r'<script id="data" type="application/json">(.*?)</script>',raw,re.S)
+          if not m: raise SystemExit('STOP: DATA block not found')
+          data=json.loads(m.group(1))
+          if data.get('through')=='11.10.2026':
+              print('Already current through 11.10.2026')
+              raise SystemExit(0)
+          if data.get('through')!='08.10.2026':
+              raise SystemExit('STOP: unexpected current through='+str(data.get('through')))
+          b64=Path('data/append-2026-10-09-11.json.gz.b64').read_text().strip()
+          payload=json.loads(gzip.decompress(base64.b64decode(b64)).decode('utf-8'))
+          fields=payload['fields']
+          rows=[dict(zip(fields,vals)) for vals in payload['rows']]
+          if len(rows)!=551: raise SystemExit('STOP: expected 551 rows')
+          dates={r['iso'] for r in rows}
+          if dates!={'2026-10-09','2026-10-10','2026-10-11'}: raise SystemExit('STOP: bad date set')
+          existing_dates={r['iso'] for r in data['daily']}
+          if dates & existing_dates: raise SystemExit('STOP: new dates already present')
+          old_count=len(data['daily'])
+          data['daily'].extend(rows)
+          if len(data['daily'])!=old_count+551: raise SystemExit('STOP: row count')
+          data['through']='11.10.2026'
+          found=False
+          for w in data['weeks']:
+              if w.get('key')=='2026-10-05':
+                  w['end']='2026-10-11'; w['label']='05.10–11.10'; found=True
+          if not found: raise SystemExit('STOP: week 2026-10-05 not found')
+          if 'note' in data:
+              data['note']='Добавлены данные 09–11.10.2026; история по 08.10 сохранена без пересчёта.'
+          js=json.dumps(data,ensure_ascii=False,separators=(',',':'))
+          out=raw[:m.start(1)]+js+raw[m.end(1):]
+          after_outside=re.sub(r'(<script id="data" type="application/json">).*?(</script>)',r'\1__DATA__\2',out,flags=re.S)
+          if before_outside!=after_outside: raise SystemExit('STOP: interface changed outside DATA')
+          p.write_text(out,encoding='utf-8')
+          # financial control for appended dates
+          expected={
+            '09.10.2026':(2894,994160.4428571432,3092,1040841.10,62578,318670.859,52938,74407.96018032786,222320.55081967212),
+            '10.10.2026':(2749,967923.1714285716,2848,956153.91,64711,291673.244,48902,70083.24075409837,195662.54524590162),
+            '11.10.2026':(3114,1082664.5142857144,2854,936322.17,70827,286075.654,48194,69974.68157377049,181204.5344262295),
+          }
+          for d,e in expected.items():
+              rs=[r for r in rows if r['date']==d]
+              got=(sum(r['ordersQty'] or 0 for r in rs),sum(r['ordersRub'] or 0 for r in rs),sum(r['buyoutsQty'] or 0 for r in rs),sum(r['revenue'] or 0 for r in rs),sum(r['ads'] or 0 for r in rs),sum(r['cost'] or 0 for r in rs),sum(r['packing'] or 0 for r in rs),sum(r['vat'] or 0 for r in rs),sum(r['profit'] or 0 for r in rs))
+              for a,b in zip(got,e):
+                  if abs(a-b)>0.02: raise SystemExit(f'STOP: control mismatch {d}: {got} != {e}')
+          print('PASS: appended 551 rows; current through 11.10.2026; interface preserved')
+          PY
+      - name: Commit updated index
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- index.html
+          git commit -m 'Append dashboard data through 11.10.2026'
+          git push origin HEAD:main
