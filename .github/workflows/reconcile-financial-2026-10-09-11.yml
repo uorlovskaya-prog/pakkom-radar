@@ -1,0 +1,92 @@
+name: Reconcile financial fields for 2026-10-09 through 2026-10-11
+on:
+  push:
+    branches: [main]
+    paths:
+      - data/reconcile-financial-2026-10-09-11.trigger
+permissions:
+  contents: write
+concurrency:
+  group: pakkom-dashboard-financial-reconcile
+  cancel-in-progress: false
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Rebase onto latest main
+        run: git pull --rebase origin main
+      - name: Reconcile only DATA rows for 09-11 October
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import base64,gzip,json,re,unicodedata
+          p=Path('index.html')
+          raw=p.read_text(encoding='utf-8')
+          outside_before=re.sub(r'(<script id="data" type="application/json">).*?(</script>)',r'\1__DATA__\2',raw,flags=re.S)
+          m=re.search(r'<script id="data" type="application/json">(.*?)</script>',raw,re.S)
+          if not m: raise SystemExit('STOP: DATA block not found')
+          data=json.loads(m.group(1))
+          if data.get('through')!='11.10.2026' or len(data.get('daily',[]))!=7148:
+              raise SystemExit('STOP: unexpected dashboard state')
+          b64=Path('data/append-2026-10-09-11.json.gz.b64').read_text().strip()
+          payload=json.loads(gzip.decompress(base64.b64decode(b64)).decode('utf-8'))
+          fields=payload['fields']
+          src=[dict(zip(fields,vals)) for vals in payload['rows']]
+          def norm(s):
+              s=unicodedata.normalize('NFKC',str(s or '')).lower().replace('ё','е')
+              s=re.sub(r'(\d)\s*[xх×*]\s*(?=\d)',r'\1х',s)
+              s=re.sub(r'\s+',' ',s).strip()
+              return s
+          def key(r): return (r['date'],norm(r.get('sku')))
+          srcmap={}
+          for r in src:
+              k=key(r)
+              if k in srcmap: raise SystemExit('STOP: duplicate payload key '+repr(k))
+              srcmap[k]=r
+          dates={'09.10.2026','10.10.2026','11.10.2026'}
+          current=[r for r in data['daily'] if r.get('date') in dates]
+          if len(current)!=551 or len(srcmap)!=551:
+              raise SystemExit(f'STOP: expected 551 current/payload rows, got {len(current)}/{len(srcmap)}')
+          curkeys={key(r) for r in current}
+          if curkeys!=set(srcmap):
+              missing=set(srcmap)-curkeys; extra=curkeys-set(srcmap)
+              raise SystemExit(f'STOP: SKU set mismatch missing={list(missing)[:5]} extra={list(extra)[:5]}')
+          update_fields=['skuKey','nmId','ordersQty','ordersRub','buyoutsQty','revenue','ads','drr','cpo','cpoStd','cpoMax','cpoStatus','cost','packing','vat','profit','margin','roi','profitPerBuyout']
+          changed=0
+          for r in current:
+              s=srcmap[key(r)]
+              before=tuple(r.get(k) for k in update_fields)
+              for k in update_fields: r[k]=s.get(k)
+              if before!=tuple(r.get(k) for k in update_fields): changed+=1
+          expected={
+            '09.10.2026':(2894,994160.4428571432,3092,1040841.10,62578,318670.859,52938,74407.96018032786,222320.55081967212),
+            '10.10.2026':(2749,967923.1714285716,2848,956153.91,64711,291673.244,48902,70083.24075409837,195662.54524590162),
+            '11.10.2026':(3114,1082664.5142857144,2854,936322.17,70827,286075.654,48194,69974.68157377049,181204.5344262295),
+          }
+          for d,e in expected.items():
+              rs=[r for r in data['daily'] if r.get('date')==d]
+              got=(sum(r.get('ordersQty') or 0 for r in rs),sum(r.get('ordersRub') or 0 for r in rs),sum(r.get('buyoutsQty') or 0 for r in rs),sum(r.get('revenue') or 0 for r in rs),sum(r.get('ads') or 0 for r in rs),sum(r.get('cost') or 0 for r in rs),sum(r.get('packing') or 0 for r in rs),sum(r.get('vat') or 0 for r in rs),sum(r.get('profit') or 0 for r in rs))
+              for a,b in zip(got,e):
+                  if abs(a-b)>0.02: raise SystemExit(f'STOP: financial control mismatch {d}: {got} != {e}')
+          js=json.dumps(data,ensure_ascii=False,separators=(',',':'))
+          out=raw[:m.start(1)]+js+raw[m.end(1):]
+          outside_after=re.sub(r'(<script id="data" type="application/json">).*?(</script>)',r'\1__DATA__\2',out,flags=re.S)
+          if outside_before!=outside_after: raise SystemExit('STOP: interface changed outside DATA')
+          p.write_text(out,encoding='utf-8')
+          print(f'PASS: reconciled {changed} of 551 rows; financial controls match full report')
+          PY
+      - name: Commit reconciled financial data
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- index.html
+          git commit -m 'Reconcile financial data through 11.10.2026'
+          git push origin HEAD:main
