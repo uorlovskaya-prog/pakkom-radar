@@ -39,11 +39,11 @@ td.num{text-align:right}.skurow{cursor:pointer}.skurow:hover td{background:#1220
 <div class="wrap">
 <header><div><h1>Пакком — SKU Radar</h1><div class="sub">Базовый период + отдельные сигналы последних дней</div></div><div class="meta">Данные по <b id="through"></b></div></header>
 
-<div class="notice" id="basePeriodInfo"><b>Базовый период:</b> с 01.09 по последнюю загруженную дату — <span id="lastLoadedDate"></span>.</div>
+<div class="notice" id="basePeriodInfo"><b>Базовый период:</b> весь доступный период до <span id="lastLoadedDate"></span>. Можно переключить на период с 01.09 или выбрать свой.</div>
 <div class="notice"><b>Как читать:</b> вся основная таблица считается за выбранный базовый период (по умолчанию с 01.09 по последнюю дату). Отдельные сигналы «срочное падение» и «сильный рост» считаются по последним 2 дням против предыдущих 2. «Систематическое падение» — последние 7 дней против предыдущих 7.</div>
 
 <div class="periodbar">
- <div class="fg"><label>Базовый период</label><select id="fBase"><option value="sep">С 1 сентября</option><option value="all">Весь период</option><option value="custom">Свой период</option></select></div>
+ <div class="fg"><label>Базовый период</label><select id="fBase"><option value="all">Весь период</option><option value="sep">С 1 сентября</option><option value="custom">Свой период</option></select></div>
  <div class="fg customBase" style="display:none"><label>Дата от</label><input id="baseFrom" type="date"></div>
  <div class="fg customBase" style="display:none"><label>Дата до</label><input id="baseTo" type="date"></div>
 </div>
@@ -268,7 +268,7 @@ function setBase(){if(state.base==='sep'){state.from='2026-09-01';state.to=lastD
 function renderAll(){renderKpis();renderQueues();renderTable()}
 function resetQuick(){state.quick='all';document.querySelectorAll('.quick').forEach(x=>x.classList.toggle('on',x.dataset.q==='all'))}
 function init(){
- $('through').textContent=DATA.through; if($('lastLoadedDate')) $('lastLoadedDate').textContent=DATA.through;$('baseFrom').min=firstDate;$('baseFrom').max=lastDate;$('baseTo').min=firstDate;$('baseTo').max=lastDate;$('baseFrom').value='2026-09-01';$('baseTo').value=lastDate;
+ $('through').textContent=DATA.through; if($('lastLoadedDate')) $('lastLoadedDate').textContent=DATA.through;$('baseFrom').min=firstDate;$('baseFrom').max=lastDate;$('baseTo').min=firstDate;$('baseTo').max=lastDate;$('baseFrom').value=firstDate;$('baseTo').value=lastDate;state.base='all';state.from=firstDate;state.to=lastDate;
  fill($('fCat'),[...new Set(DATA.daily.map(r=>r.category))].sort((a,b)=>a.localeCompare(b,'ru')),'Все категории');updateSubs();
  $('fBase').onchange=e=>{state.base=e.target.value;document.querySelectorAll('.customBase').forEach(x=>x.style.display=state.base==='custom'?'flex':'none');setBase();resetQuick();renderAll()};
  $('baseFrom').onchange=()=>{state.from=$('baseFrom').value;renderAll()};$('baseTo').onchange=()=>{state.to=$('baseTo').value;renderAll()};
