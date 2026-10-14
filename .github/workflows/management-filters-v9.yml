@@ -1,0 +1,63 @@
+name: Repair management dashboard filters v9
+on:
+  push:
+    branches: [main]
+    paths:
+      - management-src/management-filters-v9.js
+      - .github/workflows/management-filters-v9.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: pakkom-management-filter-repair
+  cancel-in-progress: false
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Validate and patch only management loader
+        shell: bash
+        run: |
+          node <<'JS'
+          const fs=require('fs'),crypto=require('crypto'),vm=require('vm');
+          const sha=s=>crypto.createHash('sha256').update(s).digest('hex');
+          const path='management.html',original=fs.readFileSync(path,'utf8');
+          const radar=fs.readFileSync('index.html');
+          const fix=fs.readFileSync('management-src/management-filters-v9.js','utf8');
+          if(sha(fix)!=='10509ae9e077843a5550c794a64896b812e4bffdf637c167a786a255bc216164')throw Error('STOP: unreviewed transform source');
+          if(original.includes('function applyPakkomManagementFiltersV9(source)')){
+            if(!original.includes('return applyPakkomManagementFiltersV9(html);'))throw Error('STOP: incomplete previous filter repair');
+            console.log('PASS: management filter repair already installed');process.exit(0);
+          }
+          if(sha(original)!=='4708dab9b0ece25e813dcac69da3a8c9ae2c1bce3d8835a298d128c0b5417558')throw Error('STOP: management page changed; review current version before updating');
+          const start="'use strict';\n(()=>{";
+          const anchor='const html=dec.decode(plain);new Uint8Array(plain).fill(0);return html;';
+          if(original.split(start).length!==2||original.split(anchor).length!==2)throw Error('STOP: loader anchors differ');
+          if(fix.toLowerCase().includes('</script'))throw Error('STOP: unsafe inline source');
+          new vm.Script(fix);
+          const updated=original.replace(start,fix+"\n"+start).replace(anchor,'const html=dec.decode(plain);new Uint8Array(plain).fill(0);return applyPakkomManagementFiltersV9(html);');
+          const sealed=s=>s.match(/<script id="pakkom-sealed-release" type="application\/json">([\s\S]*?)<\/script>/)[1];
+          if(sealed(original)!==sealed(updated))throw Error('STOP: encrypted payload or password account changed');
+          const csp=s=>s.match(/<meta http-equiv="Content-Security-Policy"[^>]*>/)[0];
+          if(csp(original)!==csp(updated)||!updated.includes('sandbox="allow-scripts"'))throw Error('STOP: security settings changed');
+          if(sha(updated)!=='7f3b5629f54fee1c8a66ddc2c8d3c45d7b495c67883e0b5932f4fcab72bd01e7')throw Error('STOP: output differs from locally checked version');
+          fs.writeFileSync(path,updated,'utf8');
+          if(!fs.readFileSync('index.html').equals(radar))throw Error('STOP: manager Radar changed');
+          console.log('PASS: only management filter loader changed; sealed data, account, CSP, and manager Radar preserved');
+          JS
+      - name: Commit checked management page
+        shell: bash
+        run: |
+          if git diff --quiet -- management.html; then exit 0; fi
+          changed="$(git diff --name-only)"
+          if [ "$changed" != "management.html" ]; then echo 'STOP: unexpected changed files'; exit 1; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- management.html
+          git commit -m 'Fix management filters on weekly and daily tabs; preserve sealed financial data'
+          git push origin HEAD:main
