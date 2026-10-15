@@ -1,0 +1,123 @@
+name: Management access v10
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/management-access-v10.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: pakkom-management-access-v10
+  cancel-in-progress: false
+jobs:
+  access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Apply bounded access-only patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json,re,hashlib
+          p=Path('management.html');s=p.read_text(encoding='utf-8')
+          manager_before=hashlib.sha256(Path('index.html').read_bytes()).hexdigest()
+          pat=r'<script id="pakkom-sealed-release" type="application/json">(.*?)</script>'
+          m=re.search(pat,s,re.S)
+          if not m: raise SystemExit('STOP: sealed release missing')
+          release=json.loads(m[1]);account=release['account']
+          patch=json.loads(Path('management-src/access-account-v10.json').read_text())
+          loader=Path('management-src/access-loader-v10.js').read_text()
+          if account['publicKey']!=patch['expectedPublicKey']: raise SystemExit('STOP: account changed')
+          if account['salt'] not in (patch['expectedSalt'],patch['newSalt']): raise SystemExit('STOP: unexpected credentials version')
+          if 'PAKKOM_MANAGEMENT_ACCESS_V10' in s:
+              if account['salt']!=patch['newSalt']: raise SystemExit('STOP: inconsistent access version')
+              print('PASS: access v10 already applied');raise SystemExit(0)
+          if 'function applyPakkomManagementFiltersV9' not in s: raise SystemExit('STOP: filters v9 missing')
+          old_payload=json.dumps(release['payload'],sort_keys=True,separators=(',',':'));old_through=release['through']
+          account.update(salt=patch['newSalt'],iv=patch['newIv'],privateKeyCiphertext=patch['newPrivateKeyCiphertext'])
+          s=s[:m.start(1)]+json.dumps(release,ensure_ascii=False,separators=(',',':'))+s[m.end(1):]
+          anchor="\n'use strict';\n(()=>{\n const $=id=>document.getElementById(id), enc=new TextEncoder()"
+          if s.count(anchor)!=1: raise SystemExit('STOP: loader anchor mismatch')
+          i=s.index(anchor);j=s.index('</script>',i);filter_before=s[s.index('/* PAKKOM_MANAGEMENT_FILTERS_V9'):i]
+          s=s[:i]+'\n'+loader.rstrip()+'\n'+s[j:]
+          button='<button type="submit" id="open" class="open">Открыть дашборд</button>'
+          if s.count(button)!=1: raise SystemExit('STOP: login button mismatch')
+          remember='<label class="remember"><input type="checkbox" id="remember" checked>Запомнить вход на этом устройстве</label><p class="remember-note">Только на личном устройстве. Кнопка «Выйти» удалит сохранённый доступ.</p>\n'
+          s=s.replace(button,remember+button,1)
+          s=s.replace('</style>','.remember{display:flex;align-items:center;gap:9px;margin:15px 0 4px;font-size:13px;font-weight:500}.remember input{width:17px;height:17px;flex:0 0 17px;padding:0;accent-color:var(--accent)}.remember-note{margin:0;color:var(--muted);font-size:11px;line-height:1.45}\n</style>',1)
+          lock='<button id="lock" type="button">Закрыть</button>'
+          if s.count(lock)!=1: raise SystemExit('STOP: logout button mismatch')
+          s=s.replace(lock,'<button id="lock" type="button">Выйти</button>',1)
+          s=s.replace('<title>','<meta name="pakkom-access-version" content="v10">\n<title>',1)
+          after=json.loads(re.search(pat,s,re.S)[1])
+          assert old_payload==json.dumps(after['payload'],sort_keys=True,separators=(',',':')),'DATA CHANGED'
+          assert old_through==after['through']
+          assert filter_before in s,'FILTER CODE CHANGED'
+          assert manager_before==hashlib.sha256(Path('index.html').read_bytes()).hexdigest(),'MANAGER CHANGED'
+          p.write_text(s,encoding='utf-8')
+          print('PASS: encrypted financial payload, dates, filter code, and manager Radar are unchanged')
+          print('management_sha256='+hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+          node --check management-src/access-loader-v10.js
+      - name: Install browser test driver
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/pakkom-access-test" playwright@1.56.1 --no-audit --no-fund
+          if ! command -v google-chrome >/dev/null 2>&1; then
+            "$RUNNER_TEMP/pakkom-access-test/node_modules/.bin/playwright" install --with-deps chromium
+          fi
+      - name: Test remembered access using synthetic credentials only
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/pakkom-access-test/smoke.cjs" <<'JS'
+          const fs=require('node:fs'),http=require('node:http'),crypto=require('node:crypto'),zlib=require('node:zlib'),os=require('node:os'),path=require('node:path'),assert=require('node:assert/strict');
+          const {chromium}=require('playwright');
+          (async()=>{
+            const source=fs.readFileSync('management.html','utf8'),loader=fs.readFileSync('management-src/access-loader-v10.js','utf8');
+            const keys=crypto.generateKeyPairSync('rsa',{modulusLength:2048});
+            const pub=keys.publicKey.export({type:'spki',format:'der'}),pk=keys.privateKey.export({type:'pkcs8',format:'der'});
+            const password='test-only-not-production',salt=crypto.randomBytes(16),iv=crypto.randomBytes(12),aes=crypto.randomBytes(32),piv=crypto.randomBytes(12);
+            const seal=(key,nonce,plain,aad)=>{const c=crypto.createCipheriv('aes-256-gcm',key,nonce);c.setAAD(Buffer.from(aad));return Buffer.concat([c.update(plain),c.final(),c.getAuthTag()]).toString('base64')};
+            const plain=Buffer.from('<!doctype html><html><body><h1 id="proof">Synthetic dashboard</h1></body></html>');
+            const release={schema:'pakkom-management-sealed-v1',through:'13.10.2026',account:{kdf:'PBKDF2-SHA256',iterations:600000,salt:salt.toString('base64'),iv:iv.toString('base64'),publicKey:pub.toString('base64'),privateKeyCiphertext:seal(crypto.pbkdf2Sync(password,salt,600000,32,'sha256'),iv,pk,'pakkom-management-key-v1')},payload:{iv:piv.toString('base64'),wrappedKey:crypto.publicEncrypt({key:keys.publicKey,oaepHash:'sha256'},aes).toString('base64'),ciphertext:seal(aes,piv,zlib.gzipSync(plain),'pakkom-management-dashboard-v1'),sha256:crypto.createHash('sha256').update(plain).digest('hex')}};
+            const prefix=source.slice(0,source.indexOf('<script id="pakkom-sealed-release"'));
+            const fixture=prefix+'<script id="pakkom-sealed-release" type="application/json">'+JSON.stringify(release)+'</script><script>function applyPakkomManagementFiltersV9(html){return html;}\n'+loader+'</script></body></html>';
+            const server=http.createServer((req,res)=>{res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});res.end(fixture)});
+            await new Promise(r=>server.listen(0,'127.0.0.1',r));const url='http://127.0.0.1:'+server.address().port+'/management.html';
+            const profile=fs.mkdtempSync(path.join(os.tmpdir(),'pakkom-access-v10-'));
+            const options={headless:true,args:['--no-sandbox'],viewport:{width:1200,height:800}};
+            if(fs.existsSync('/usr/bin/google-chrome'))options.executablePath='/usr/bin/google-chrome';
+            let ctx;const errors=[];
+            try{
+              ctx=await chromium.launchPersistentContext(profile,options);let page=await ctx.newPage();page.on('pageerror',e=>errors.push(String(e)));
+              const gate=async()=>{await page.locator('#gate').waitFor({state:'visible'});await page.waitForFunction(()=>!document.getElementById('open').disabled)};
+              const opened=async()=>{await page.locator('#working').waitFor({state:'visible'});await page.frameLocator('#board').locator('#proof').waitFor({state:'visible'})};
+              await page.goto(url);await gate();await page.fill('#password','wrong');await page.click('#open');await gate();assert(await page.locator('#working').isHidden());
+              await page.fill('#password',password);await page.click('#open');await opened();console.log('PASS: correct password opens; wrong password rejected');
+              const extractable=await page.evaluate(()=>new Promise((resolve,reject)=>{const r=indexedDB.open('pakkom-management-access',1);r.onerror=()=>reject(r.error);r.onsuccess=()=>{const db=r.result,q=db.transaction('access').objectStore('access').get('current');q.onsuccess=()=>{resolve(q.result.key.extractable);db.close()};q.onerror=()=>reject(q.error)}}));assert.equal(extractable,false);
+              await page.reload();await opened();console.log('PASS: reload restores a non-extractable saved key');
+              await ctx.close();ctx=await chromium.launchPersistentContext(profile,options);page=await ctx.newPage();page.on('pageerror',e=>errors.push(String(e)));await page.goto(url);await opened();console.log('PASS: browser restart restores access without password');
+              await page.click('#refresh');await page.waitForFunction(()=>!document.getElementById('refresh').disabled);assert((await page.locator('#status').textContent()).includes('актуальная'));
+              await page.click('#lock');await gate();await page.reload();await gate();assert(await page.locator('#working').isHidden());console.log('PASS: logout deletes saved access');
+              await page.uncheck('#remember');await page.fill('#password',password);await page.click('#open');await opened();await page.reload();await gate();assert(await page.locator('#working').isHidden());console.log('PASS: unchecked remember does not persist access');
+              assert.deepEqual(errors,[]);console.log('PASS: all browser access tests; no production password or financial data used');
+            }finally{if(ctx)await ctx.close();server.close();fs.rmSync(profile,{recursive:true,force:true})}
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          node "$RUNNER_TEMP/pakkom-access-test/smoke.cjs"
+      - name: Commit only management page
+        shell: bash
+        run: |
+          if git diff --quiet -- management.html; then exit 0; fi
+          test "$(git diff --name-only | wc -l)" -eq 1
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- management.html
+          git commit -m 'Update management access and remember browser; preserve reports and filters'
+          git push origin HEAD:main
