@@ -25,6 +25,12 @@ function signalMatchesV11(s,q){return q==='cporisk'?['control','critical'].inclu
 function signalBadgeV11(s){
  return s.labels.map((x,i)=>`<span class="signal signal-pill ${s.priority===1?'sig-urgent':s.priority===2?'sig-system':s.priority===3?'sig-growth':'sig-none'}">${esc(x)}</span>`).join(' ');
 }
+/* PAKKOM_PRIMARY_SIGNAL_V15: presentation only; all engine flags remain filterable. */
+function primarySignalBadgeV15(s){
+ const rank=['Реклама без заказов 3 дня','Нет заказов 3 дня','Критическое падение заказов','Расход рекламы без заказов','CPO выше максимума','Нет заказов 7 дней','Устойчивое падение 5 дней','Длительное снижение','Падение за неделю','Падение за 2 дня','CPO выше стандарта','CPO ухудшился','Рост за 2 дня','Рост за неделю','Отскок за 2 дня','Отскок за неделю'];
+ const label=rank.find(x=>s.labels.includes(x))||s.labels[0];
+ return signalBadgeV11({...s,labels:label?[label]:[]});
+}
 function signalSummaryV11(s){
  if(s.stopped)return '0 заказов за '+rangeV11(s.cur3);
  if(s.inactive)return '0 заказов за '+rangeV11(s.c7.cur);
@@ -40,12 +46,12 @@ function signalEvidenceV11(g){
  const five=c.valid?`${num(c.cur.ordersQty)} против ${decimalV11.format(c.prev.ordersQty)} (${pct(c.dO)})`:'Недостаточно истории';
  const week=s.c7.valid?`${num(s.c7.cur.ordersQty)} против ${num(s.c7.prev.ordersQty)} (${pct(s.c7.dO)})`:'Недостаточно истории';
  const long=l.valid?`${num(l.cur.ordersQty)} против ${decimalV11.format(l.baselineWeek)} (${pct(l.dO)})`:'Нужно минимум две полные предыдущие недели';
- return `<div class="signal-evidence-v11"><h3>Что требует внимания на ${sdV11(s.asOf)}</h3><div>${signalBadgeV11(s)}</div><div class="signal-evidence-grid-v11">
+ return `<details class="signal-evidence-v11 signal-evidence-collapsed-v15"><summary>Что требует внимания <span class="hint">на ${sdV11(s.asOf)}</span></summary><div class="signal-evidence-body-v15"><div>${signalBadgeV11(s)}</div><div class="signal-evidence-grid-v11">
  <div><b>Последние 5 дней · ${rangeV11(c.cur)}</b><p>${five}</p><span>Сравнение с теми же днями недели: ${c.baselines.map(rangeV11).join('; ')}. Ниже 70% своего дневного уровня: ${c.belowDays} из 5 дней.</span></div>
  <div><b>Неделя к неделе</b><p>${week}</p><span>${rangeV11(s.c7.cur)} против ${rangeV11(s.c7.prev)}.</span></div>
  <div><b>Относительно прежнего уровня</b><p>${long}</p><span>Обычный уровень — медиана ${l.priorWeeks.length} предыдущих полных недель; единичный высокий день не является отдельной базой сравнения.</span></div>
  <div><b>Реклама за ${rangeV11(s.c7.cur)}</b><p>CPO: ${money(s.c7.cur.cpo)} · ${cpoNamesV11[s.cpoCode]}</p><span>Расход: ${money(s.c7.cur.ads)}. Стандарт: ${money(s.cpoStd)}; максимум: ${money(s.cpoMax)}.</span></div></div>
- <h3>Следующие действия</h3><ol>${s.actions.map(a=>'<li>'+esc(a)+'</li>').join('')}</ol><div class="hint">Остатки, сроки доставки, показы и конверсия в этих данных отсутствуют: перечислены проверки возможных причин, а не установленная причина падения.</div></div>`;
+ <h3>Следующие действия</h3><ol>${s.actions.map(a=>'<li>'+esc(a)+'</li>').join('')}</ol><div class="hint">Остатки, сроки доставки, показы и конверсия в этих данных отсутствуют: перечислены проверки возможных причин, а не установленная причина падения.</div></div></details>`;
 }
 function priorityCandidatesV11(){
  const rs=DATA.daily.filter(r=>(state.cat==='all'||r.category===state.cat)&&(state.sub==='all'||r.subcategory===state.sub)&&(!state.search||matchesSkuSearch(r,state.search)));

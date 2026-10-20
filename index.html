@@ -108,6 +108,14 @@ th{line-height:1.3;letter-spacing:0}
 
 /* PAKKOM_THIN_ROWS_V14: recommendations remain inside expanded SKU only. */
 #skuTable>tbody>tr.skurow>td{padding-top:3px;padding-bottom:3px}
+
+/* PAKKOM_ATTENTION_DISCLOSURE_V15 */
+.signal-evidence-collapsed-v15>summary{cursor:pointer;font-size:13px;font-weight:750;line-height:1.4}
+.signal-evidence-collapsed-v15>summary::marker{color:var(--blue)}
+.signal-evidence-collapsed-v15>summary .hint{font-weight:400;margin-left:6px}
+.signal-evidence-collapsed-v15:not([open]){padding:9px 12px}
+.signal-evidence-body-v15{padding-top:12px;min-width:0}
+
 </style>
 </head>
 <body>
@@ -418,7 +426,7 @@ function head(c){
  return `<th class="${can?'sortable':''}" data-k="${c[0]}" title="${can?'Нажмите для сортировки: больше/меньше':''}">${c[1]}${ar}</th>`
 }
 function actionText(g){return signalActionV11(g)}
-function renderTable(){const gs=getGroups();let h='<tr>'+COLS.map(head).join('')+'</tr>';gs.forEach(g=>{const m=g.m,st=statusBase(g),s=signal(g);h+=`<tr class="skurow" data-k="${esc(g.key)}"><td>${pillBase(st)}</td><td class="signal-column-v11">${sigBadge(s)}</td><td>${esc(g.subcategory)}</td><td class="sku">${esc(g.sku)}</td><td class="num">${money(m.ordersRub)}</td><td class="num">${num(m.ordersQty)}</td><td class="num">${num(m.avgOrdersDay)}</td><td class="num">${num(m.buyoutsQty)}</td><td class="num">${pct(m.buyout)}</td><td class="num">${money(m.ads)}</td><td class="num">${money(m.cpo)}</td><td class="num">${pct(m.roi)}</td><td class="num">${money(m.profitPerBuyout)}</td><td class="num ${Number.isFinite(s.c2.dO)?(s.c2.dO<0?'bad':'good'):''}">${pct(s.c2.dO)}</td><td class="num ${Number.isFinite(s.c7.dO)?(s.c7.dO<0?'bad':'good'):''}">${pct(s.c7.dO)}</td></tr>`;if(state.expanded===g.key)h+=detail(g,s)});if(!gs.length)h+=`<tr><td colspan="${COLS.length}" style="text-align:center;color:var(--mut);padding:18px">Нет SKU по выбранному сигналу</td></tr>`;$('skuTable').innerHTML=h;document.querySelectorAll('.skurow').forEach(tr=>tr.onclick=()=>{state.expanded=state.expanded===tr.dataset.k?null:tr.dataset.k;renderTable()});document.querySelectorAll('th.sortable').forEach(th=>th.onclick=()=>{
+function renderTable(){const gs=getGroups();let h='<tr>'+COLS.map(head).join('')+'</tr>';gs.forEach(g=>{const m=g.m,st=statusBase(g),s=signal(g);h+=`<tr class="skurow" data-k="${esc(g.key)}"><td>${pillBase(st)}</td><td class="signal-column-v11">${primarySignalBadgeV15(s)}</td><td>${esc(g.subcategory)}</td><td class="sku">${esc(g.sku)}</td><td class="num">${money(m.ordersRub)}</td><td class="num">${num(m.ordersQty)}</td><td class="num">${num(m.avgOrdersDay)}</td><td class="num">${num(m.buyoutsQty)}</td><td class="num">${pct(m.buyout)}</td><td class="num">${money(m.ads)}</td><td class="num">${money(m.cpo)}</td><td class="num">${pct(m.roi)}</td><td class="num">${money(m.profitPerBuyout)}</td><td class="num ${Number.isFinite(s.c2.dO)?(s.c2.dO<0?'bad':'good'):''}">${pct(s.c2.dO)}</td><td class="num ${Number.isFinite(s.c7.dO)?(s.c7.dO<0?'bad':'good'):''}">${pct(s.c7.dO)}</td></tr>`;if(state.expanded===g.key)h+=detail(g,s)});if(!gs.length)h+=`<tr><td colspan="${COLS.length}" style="text-align:center;color:var(--mut);padding:18px">Нет SKU по выбранному сигналу</td></tr>`;$('skuTable').innerHTML=h;document.querySelectorAll('.skurow').forEach(tr=>tr.onclick=()=>{state.expanded=state.expanded===tr.dataset.k?null:tr.dataset.k;renderTable()});document.querySelectorAll('th.sortable').forEach(th=>th.onclick=()=>{
  const k=th.dataset.k;
  if(state.sort===k) state.dir*=-1;
  else { state.sort=k; state.dir=-1; }
@@ -468,6 +476,12 @@ function signalMatchesV11(s,q){return q==='cporisk'?['control','critical'].inclu
 function signalBadgeV11(s){
  return s.labels.map((x,i)=>`<span class="signal signal-pill ${s.priority===1?'sig-urgent':s.priority===2?'sig-system':s.priority===3?'sig-growth':'sig-none'}">${esc(x)}</span>`).join(' ');
 }
+/* PAKKOM_PRIMARY_SIGNAL_V15: presentation only; all engine flags remain filterable. */
+function primarySignalBadgeV15(s){
+ const rank=['Реклама без заказов 3 дня','Нет заказов 3 дня','Критическое падение заказов','Расход рекламы без заказов','CPO выше максимума','Нет заказов 7 дней','Устойчивое падение 5 дней','Длительное снижение','Падение за неделю','Падение за 2 дня','CPO выше стандарта','CPO ухудшился','Рост за 2 дня','Рост за неделю','Отскок за 2 дня','Отскок за неделю'];
+ const label=rank.find(x=>s.labels.includes(x))||s.labels[0];
+ return signalBadgeV11({...s,labels:label?[label]:[]});
+}
 function signalSummaryV11(s){
  if(s.stopped)return '0 заказов за '+rangeV11(s.cur3);
  if(s.inactive)return '0 заказов за '+rangeV11(s.c7.cur);
@@ -483,12 +497,12 @@ function signalEvidenceV11(g){
  const five=c.valid?`${num(c.cur.ordersQty)} против ${decimalV11.format(c.prev.ordersQty)} (${pct(c.dO)})`:'Недостаточно истории';
  const week=s.c7.valid?`${num(s.c7.cur.ordersQty)} против ${num(s.c7.prev.ordersQty)} (${pct(s.c7.dO)})`:'Недостаточно истории';
  const long=l.valid?`${num(l.cur.ordersQty)} против ${decimalV11.format(l.baselineWeek)} (${pct(l.dO)})`:'Нужно минимум две полные предыдущие недели';
- return `<div class="signal-evidence-v11"><h3>Что требует внимания на ${sdV11(s.asOf)}</h3><div>${signalBadgeV11(s)}</div><div class="signal-evidence-grid-v11">
+ return `<details class="signal-evidence-v11 signal-evidence-collapsed-v15"><summary>Что требует внимания <span class="hint">на ${sdV11(s.asOf)}</span></summary><div class="signal-evidence-body-v15"><div>${signalBadgeV11(s)}</div><div class="signal-evidence-grid-v11">
  <div><b>Последние 5 дней · ${rangeV11(c.cur)}</b><p>${five}</p><span>Сравнение с теми же днями недели: ${c.baselines.map(rangeV11).join('; ')}. Ниже 70% своего дневного уровня: ${c.belowDays} из 5 дней.</span></div>
  <div><b>Неделя к неделе</b><p>${week}</p><span>${rangeV11(s.c7.cur)} против ${rangeV11(s.c7.prev)}.</span></div>
  <div><b>Относительно прежнего уровня</b><p>${long}</p><span>Обычный уровень — медиана ${l.priorWeeks.length} предыдущих полных недель; единичный высокий день не является отдельной базой сравнения.</span></div>
  <div><b>Реклама за ${rangeV11(s.c7.cur)}</b><p>CPO: ${money(s.c7.cur.cpo)} · ${cpoNamesV11[s.cpoCode]}</p><span>Расход: ${money(s.c7.cur.ads)}. Стандарт: ${money(s.cpoStd)}; максимум: ${money(s.cpoMax)}.</span></div></div>
- <h3>Следующие действия</h3><ol>${s.actions.map(a=>'<li>'+esc(a)+'</li>').join('')}</ol><div class="hint">Остатки, сроки доставки, показы и конверсия в этих данных отсутствуют: перечислены проверки возможных причин, а не установленная причина падения.</div></div>`;
+ <h3>Следующие действия</h3><ol>${s.actions.map(a=>'<li>'+esc(a)+'</li>').join('')}</ol><div class="hint">Остатки, сроки доставки, показы и конверсия в этих данных отсутствуют: перечислены проверки возможных причин, а не установленная причина падения.</div></div></details>`;
 }
 function priorityCandidatesV11(){
  const rs=DATA.daily.filter(r=>(state.cat==='all'||r.category===state.cat)&&(state.sub==='all'||r.subcategory===state.sub)&&(!state.search||matchesSkuSearch(r,state.search)));
