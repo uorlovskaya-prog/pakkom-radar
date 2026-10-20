@@ -1,0 +1,42 @@
+name: Check demand signals and management priorities
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - management.html
+      - management-signals-v11.js
+      - management-src/signals-ui-v11.js
+      - tests/management-signals-v11.cjs
+      - tests/signals-ui-v11.cjs
+      - .github/workflows/signals-v11.yml
+permissions:
+  contents: read
+jobs:
+  signals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Demand and CPO regression checks
+        run: node tests/management-signals-v11.cjs
+      - name: Render, search, quick filters and SKU detail checks
+        run: node tests/signals-ui-v11.cjs
+      - name: Check shared signal version and encrypted owner release
+        run: |
+          node <<'JS'
+          const fs=require('node:fs'),assert=require('node:assert/strict');
+          const radar=fs.readFileSync('index.html','utf8'),owner=fs.readFileSync('management.html','utf8');
+          const release=JSON.parse(owner.match(/<script id="pakkom-sealed-release" type="application\/json">([\s\S]*?)<\/script>/)[1]);
+          const data=JSON.parse(radar.match(/<script id="data" type="application\/json">([\s\S]*?)<\/script>/)[1]);
+          assert.equal(release.signalsVersion,11);
+          assert.equal(release.through,data.through);
+          assert(radar.includes(fs.readFileSync('management-src/signals-ui-v11.js','utf8')));
+          assert(owner.includes('PAKKOM_MANAGEMENT_ACCESS_V10'));
+          assert(owner.includes('PAKKOM_MANAGEMENT_FILTERS_V9'));
+          assert(!owner.includes('"daily":'));
+          console.log('Shared UI source, signal version, paired dates and sealed access verified');
+          JS
