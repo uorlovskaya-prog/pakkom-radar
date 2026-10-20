@@ -81,22 +81,22 @@ th{line-height:1.3;letter-spacing:0}
 .priority-item-v11>div{min-width:0;overflow-wrap:anywhere}
 @media(max-width:800px){.detailtop{grid-template-columns:minmax(0,1fr)}.priority-item-v11{grid-template-columns:minmax(0,1fr)}}
 
-#skuTable th[data-k="status"]{width:6.255144%}
-#skuTable th[data-k="signal"]{width:8.230453%}
-#skuTable th[data-k="subcategory"]{width:6.172840%}
-#skuTable th[data-k="sku"]{width:13.168724%}
-#skuTable th[data-k="ordersRub"]{width:7.736626%}
-#skuTable th[data-k="ordersQty"]{width:4.032922%}
-#skuTable th[data-k="avgOrdersDay"]{width:4.115226%}
-#skuTable th[data-k="buyoutsQty"]{width:4.691358%}
-#skuTable th[data-k="buyout"]{width:4.032922%}
-#skuTable th[data-k="ads"]{width:6.255144%}
-#skuTable th[data-k="cpo"]{width:4.032922%}
-#skuTable th[data-k="roi"]{width:3.703704%}
-#skuTable th[data-k="profitPerBuyout"]{width:5.761317%}
-#skuTable th[data-k="urgentDelta"]{width:4.526749%}
-#skuTable th[data-k="systemDelta"]{width:4.526749%}
-#skuTable th[data-k="action"]{width:12.757202%}
+#skuTable th[data-k="status"]{width:7.169811%}
+#skuTable th[data-k="signal"]{width:9.433962%}
+#skuTable th[data-k="subcategory"]{width:7.075472%}
+#skuTable th[data-k="sku"]{width:15.094339%}
+#skuTable th[data-k="ordersRub"]{width:8.867925%}
+#skuTable th[data-k="ordersQty"]{width:4.622642%}
+#skuTable th[data-k="avgOrdersDay"]{width:4.716981%}
+#skuTable th[data-k="buyoutsQty"]{width:5.377358%}
+#skuTable th[data-k="buyout"]{width:4.622642%}
+#skuTable th[data-k="ads"]{width:7.169811%}
+#skuTable th[data-k="cpo"]{width:4.622642%}
+#skuTable th[data-k="roi"]{width:4.245283%}
+#skuTable th[data-k="profitPerBuyout"]{width:6.603774%}
+#skuTable th[data-k="urgentDelta"]{width:5.188679%}
+#skuTable th[data-k="systemDelta"]{width:5.188679%}
+
 .detailtop>.box:first-child table tr:first-child>th:nth-child(1){width:13%}
 .detailtop>.box:first-child table tr:first-child>th:nth-child(2){width:18%}
 .detailtop>.box:first-child table tr:first-child>th:nth-child(3){width:10%}
@@ -105,6 +105,9 @@ th{line-height:1.3;letter-spacing:0}
 .detailtop>.box:first-child table tr:first-child>th:nth-child(6){width:9%}
 .detailtop>.box:first-child table tr:first-child>th:nth-child(7){width:10%}
 .detailtop>.box:first-child table tr:first-child>th:nth-child(8){width:15%}
+
+/* PAKKOM_THIN_ROWS_V14: recommendations remain inside expanded SKU only. */
+#skuTable>tbody>tr.skurow>td{padding-top:3px;padding-bottom:3px}
 </style>
 </head>
 <body>
@@ -404,7 +407,7 @@ function kpi(l,v,d,c=''){return `<div class="kpi"><div class="l">${l}</div><div 
 function renderKpis(){const gs=getGroups(),m=agg(gs.flatMap(g=>g.rows)),uf=gs.filter(g=>signal(g).urgentFall).length,sf=gs.filter(g=>signal(g).systemFall).length,sg=gs.filter(g=>signal(g).strongGrowth).length,syg=gs.filter(g=>signal(g).systemGrowth).length;$('kpis').innerHTML=[kpi('SKU в периоде',num(gs.length),sdV11(state.from)+' — '+sdV11(state.to)),kpi('Заказы после комиссии',money(m.ordersRub),'оценка за выбранный период'),kpi('Заказы',num(m.ordersQty)+' шт.','количество заказов'),kpi('Средние заказы / день',num(m.avgOrdersDay),'базовый период'),kpi('Выкуп',pct(m.buyout),num(m.buyoutsQty)+' шт.'),kpi('CPO',money(m.cpo),'базовый период'),kpi('ROI',pct(m.roi),'базовый период'),kpi('Срочное падение',num(uf)+' SKU','последние 2 дня','bad'),kpi('Систематическое падение',num(sf)+' SKU','последние 7 дней','warn'),kpi('Сильный рост',num(sg)+' SKU','последние 2 дня','good'),kpi('Систематический рост',num(syg)+' SKU','последние 7 дней','cyan')].join('')}
 function setQuick(q){state.status='all';$('fStatus').value='all';state.quick=q;state.expanded=null;document.querySelectorAll('.quick').forEach(x=>x.classList.toggle('on',x.dataset.q===q));renderAll()}
 function renderQueues(){const all=groups(DATA.daily.filter(filtersOk)),defs=Object.entries(signalNamesV11);$('queues').innerHTML=defs.map(([q,label])=>{const count=all.filter(g=>signalMatchesV11(signal(g),q)).length;return `<button class="q ${state.quick===q?'on':''}" data-q="${q}"><b>${label}</b><span>${count} SKU</span></button>`}).join('');document.querySelectorAll('.q').forEach(x=>x.onclick=()=>setQuick(x.dataset.q))}
-const COLS=[['status','Статус'],['signal','Сигналы и риски'],['subcategory','Подкатегория'],['sku','SKU'],['ordersRub','Заказы после комиссии, ₽'],['ordersQty','Заказы шт.'],['avgOrdersDay','Заказы в день'],['buyoutsQty','Выкуплено шт.'],['buyout','Выкуп %'],['ads','Реклама'],['cpo','CPO'],['roi','ROI'],['profitPerBuyout','ЧП / 1 выкуп'],['urgentDelta','Изм. заказов 2д'],['systemDelta','Изм. заказов 7д'],['action','Что делать']];
+const COLS=[['status','Статус'],['signal','Сигналы и риски'],['subcategory','Подкатегория'],['sku','SKU'],['ordersRub','Заказы после комиссии, ₽'],['ordersQty','Заказы шт.'],['avgOrdersDay','Заказы в день'],['buyoutsQty','Выкуплено шт.'],['buyout','Выкуп %'],['ads','Реклама'],['cpo','CPO'],['roi','ROI'],['profitPerBuyout','ЧП / 1 выкуп'],['urgentDelta','Изм. заказов 2д'],['systemDelta','Изм. заказов 7д']];
 const sortable=new Set([
  'ordersRub','ordersQty','avgOrdersDay','buyoutsQty','buyout','ads','cpo','roi','profitPerBuyout',
  'urgentDelta','systemDelta'
@@ -415,7 +418,7 @@ function head(c){
  return `<th class="${can?'sortable':''}" data-k="${c[0]}" title="${can?'Нажмите для сортировки: больше/меньше':''}">${c[1]}${ar}</th>`
 }
 function actionText(g){return signalActionV11(g)}
-function renderTable(){const gs=getGroups();let h='<tr>'+COLS.map(head).join('')+'</tr>';gs.forEach(g=>{const m=g.m,st=statusBase(g),s=signal(g);h+=`<tr class="skurow" data-k="${esc(g.key)}"><td>${pillBase(st)}</td><td class="signal-column-v11">${sigBadge(s)}</td><td>${esc(g.subcategory)}</td><td class="sku">${esc(g.sku)}</td><td class="num">${money(m.ordersRub)}</td><td class="num">${num(m.ordersQty)}</td><td class="num">${num(m.avgOrdersDay)}</td><td class="num">${num(m.buyoutsQty)}</td><td class="num">${pct(m.buyout)}</td><td class="num">${money(m.ads)}</td><td class="num">${money(m.cpo)}</td><td class="num">${pct(m.roi)}</td><td class="num">${money(m.profitPerBuyout)}</td><td class="num ${Number.isFinite(s.c2.dO)?(s.c2.dO<0?'bad':'good'):''}">${pct(s.c2.dO)}</td><td class="num ${Number.isFinite(s.c7.dO)?(s.c7.dO<0?'bad':'good'):''}">${pct(s.c7.dO)}</td><td class="management-action-v11">${actionText(g)}</td></tr>`;if(state.expanded===g.key)h+=detail(g,s)});if(!gs.length)h+=`<tr><td colspan="${COLS.length}" style="text-align:center;color:var(--mut);padding:18px">Нет SKU по выбранному сигналу</td></tr>`;$('skuTable').innerHTML=h;document.querySelectorAll('.skurow').forEach(tr=>tr.onclick=()=>{state.expanded=state.expanded===tr.dataset.k?null:tr.dataset.k;renderTable()});document.querySelectorAll('th.sortable').forEach(th=>th.onclick=()=>{
+function renderTable(){const gs=getGroups();let h='<tr>'+COLS.map(head).join('')+'</tr>';gs.forEach(g=>{const m=g.m,st=statusBase(g),s=signal(g);h+=`<tr class="skurow" data-k="${esc(g.key)}"><td>${pillBase(st)}</td><td class="signal-column-v11">${sigBadge(s)}</td><td>${esc(g.subcategory)}</td><td class="sku">${esc(g.sku)}</td><td class="num">${money(m.ordersRub)}</td><td class="num">${num(m.ordersQty)}</td><td class="num">${num(m.avgOrdersDay)}</td><td class="num">${num(m.buyoutsQty)}</td><td class="num">${pct(m.buyout)}</td><td class="num">${money(m.ads)}</td><td class="num">${money(m.cpo)}</td><td class="num">${pct(m.roi)}</td><td class="num">${money(m.profitPerBuyout)}</td><td class="num ${Number.isFinite(s.c2.dO)?(s.c2.dO<0?'bad':'good'):''}">${pct(s.c2.dO)}</td><td class="num ${Number.isFinite(s.c7.dO)?(s.c7.dO<0?'bad':'good'):''}">${pct(s.c7.dO)}</td></tr>`;if(state.expanded===g.key)h+=detail(g,s)});if(!gs.length)h+=`<tr><td colspan="${COLS.length}" style="text-align:center;color:var(--mut);padding:18px">Нет SKU по выбранному сигналу</td></tr>`;$('skuTable').innerHTML=h;document.querySelectorAll('.skurow').forEach(tr=>tr.onclick=()=>{state.expanded=state.expanded===tr.dataset.k?null:tr.dataset.k;renderTable()});document.querySelectorAll('th.sortable').forEach(th=>th.onclick=()=>{
  const k=th.dataset.k;
  if(state.sort===k) state.dir*=-1;
  else { state.sort=k; state.dir=-1; }
