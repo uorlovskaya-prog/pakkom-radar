@@ -7,6 +7,20 @@ const sdV11=v=>v?String(v).split('-').reverse().join('.'):'—';
 const rangeV11=s=>sdV11(s.from)+' — '+sdV11(s.to);
 const cpoNamesV11={normal:'в норме',control:'выше стандарта',critical:'критично',none:'без рекламы',unknown:'нет норматива / данных'};
 let allPrioritiesV11=false;
+const prioritiesStorageKeyV11='pakkom-priorities-expanded-v11:'+SIGNAL_SITE_MODE_V11;
+let prioritiesExpandedV11=false;
+try{prioritiesExpandedV11=localStorage.getItem(prioritiesStorageKeyV11)==='true'}catch(e){}
+function syncPrioritiesToggleV11(){
+ const body=$('priorityBodyV11'),button=$('priorityToggleV11');if(!body||!button)return;
+ body.hidden=!prioritiesExpandedV11;
+ button.setAttribute('aria-expanded',String(prioritiesExpandedV11));
+ button.textContent=prioritiesExpandedV11?'Скрыть':'Показать';
+ button.onclick=()=>{
+  prioritiesExpandedV11=!prioritiesExpandedV11;
+  try{localStorage.setItem(prioritiesStorageKeyV11,String(prioritiesExpandedV11))}catch(e){}
+  syncPrioritiesToggleV11();
+ };
+}
 function signalMatchesV11(s,q){return q==='cporisk'?['control','critical'].includes(s.cpoCode):signalFiltersV11[q]?s[signalFiltersV11[q]]:true}
 function signalBadgeV11(s){
  return s.labels.map((x,i)=>`<span class="signal signal-pill ${s.priority===1?'sig-urgent':s.priority===2?'sig-system':s.priority===3?'sig-growth':'sig-none'}">${esc(x)}</span>`).join(' ');
@@ -47,6 +61,8 @@ function openSignalSkuV11(key){
 function renderPrioritiesV11(){
  const target=$('priorityListV11');if(!target)return;
  const all=priorityCandidatesV11(),visible=allPrioritiesV11?all:all.slice(0,12),p1=all.filter(x=>x.s.priority===1).length,p2=all.filter(x=>x.s.priority===2).length;
+ $('priorityCountsV11').textContent=`Сегодня: ${p1} · Проверить: ${p2}`;
+ syncPrioritiesToggleV11();
  $('prioritySummaryV11').textContent=`Данные по ${sdV11(signalEngineV11.asOf)} · Сегодня: ${p1} SKU · Проверить в течение 1–2 дней: ${p2} SKU. Сначала срочность, затем снижение темпа заказов. Категория и поиск учитываются; выбранная неделя и фильтр CPO не скрывают риски здесь.`;
  target.innerHTML=visible.length?visible.map(({g,s})=>`<article class="priority-item-v11"><div><span class="priority-level-v11 p${s.priority}">${s.priority===1?'1 · Сегодня':s.priority===2?'2 · Проверить':'3 · Рост'}</span><button class="priority-sku-v11" data-open-signal="${esc(g.key)}">${esc(g.sku)}</button><div class="hint">WB ${esc(g.nmId||'—')}</div></div><div>${signalBadgeV11(s)}<p>${signalSummaryV11(s)}</p><div class="hint">CPO 7д ${money(s.c7.cur.cpo)} · ${cpoNamesV11[s.cpoCode]}</div></div><div>${esc(s.actions[0])}<details><summary>Все проверки</summary><ol>${s.actions.slice(1).map(x=>'<li>'+esc(x)+'</li>').join('')}</ol></details></div></article>`).join(''):'Нет товаров с пороговыми сигналами в выбранной категории / поиске.';
  if(all.length>12)target.innerHTML+=`<button id="allPrioritiesV11">${allPrioritiesV11?'Свернуть до 12':'Показать все '+all.length+' SKU с сигналами'}</button>`;
