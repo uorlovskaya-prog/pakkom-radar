@@ -133,14 +133,17 @@ th{line-height:1.3;letter-spacing:0}
 .range-summary-v17,.range-error-v17{flex-basis:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.4}
 .range-error-v17{color:var(--red)}.range-error-v17[hidden]{display:none}
 .orders-basis-v17{color:var(--mut);font-size:11px;margin:0 0 8px;white-space:normal;line-height:1.4}
+
+/* PAKKOM_CLEAN_HEADER_V18: controls and current report date only. */
+header{justify-content:flex-end;flex-direction:row;align-items:center;padding-bottom:5px;margin-bottom:7px}
+header .meta{text-align:right;margin-left:auto}
+#rangeSummaryV17[hidden],#managementFilterSelection[hidden]{display:none}
 </style>
 </head>
 <body>
 <div class="wrap">
-<header><div><h1>Пакком — SKU Radar</h1><div class="sub">Базовый период + отдельные сигналы последних дней</div></div><div class="meta">Данные по <b id="through"></b></div></header>
+<header><div class="meta">Данные по <b id="through"></b></div></header>
 
-<p class="orders-basis-v17">Все суммы заказов — после комиссии WB (оценка). Показатели товаров относятся к выбранным датам.</p>
-<div class="notice"><b>Как читать:</b> показатели таблицы относятся к выбранному периоду. Сигналы и приоритеты проверяют последние 2, 5, 7 дней и прежний недельный уровень независимо от CPO. Подробности — в карточке товара.</div>
 
 <div class="periodbar date-range-controls-v17">
  <div class="fg"><label for="baseFrom">С даты</label><input id="baseFrom" type="date" lang="ru" aria-describedby="rangeErrorV17"></div>
@@ -148,7 +151,7 @@ th{line-height:1.3;letter-spacing:0}
  <button id="applyRangeV17" type="button">Применить</button>
  <div class="fg"><label for="fBase">Готовый период</label><select id="fBase"></select></div>
  <button id="monthRangeV17" type="button">С начала месяца</button><button id="last7RangeV17" type="button">Последние 7 дней</button><button id="allRangeV17" type="button">Вся история</button>
- <div class="range-summary-v17 hint" id="rangeSummaryV17" role="status" aria-live="polite"></div>
+ <div class="range-summary-v17 hint" id="rangeSummaryV17" hidden role="status" aria-live="polite"></div>
  <div class="range-error-v17" id="rangeErrorV17" role="alert" hidden></div>
 </div>
 
@@ -433,7 +436,7 @@ function sortValue(g){const s=signal(g),m=g.m;if(state.sort==='urgentDelta')retu
 function pillBase(st){return `<span class="pill ${st.status}">${st.label}</span>`}
 function sigBadge(s){return signalBadgeV11(s)}
 function kpi(l,v,d,c=''){return `<div class="kpi"><div class="l">${l}</div><div class="v ${c}">${v}</div><div class="d">${d||''}</div></div>`}
-function renderKpis(){const gs=getGroups(),m=agg(gs.flatMap(g=>g.rows)),uf=gs.filter(g=>signal(g).urgentFall).length,sf=gs.filter(g=>signal(g).systemFall).length,sg=gs.filter(g=>signal(g).strongGrowth).length,syg=gs.filter(g=>signal(g).systemGrowth).length;$('kpis').innerHTML=[kpi('SKU в периоде',num(gs.length),sdV11(state.from)+' — '+sdV11(state.to)),kpi('Заказы после комиссии WB',money(m.ordersRub),'оценка за выбранный период'),kpi('Заказы',num(m.ordersQty)+' шт.','количество заказов'),kpi('Средние заказы / день',num(m.avgOrdersDay),'базовый период'),kpi('Выкуп',pct(m.buyout),num(m.buyoutsQty)+' шт.'),kpi('CPO',money(m.cpo),'базовый период'),kpi('ROI',pct(m.roi),'базовый период'),kpi('Срочное падение',num(uf)+' SKU','последние 2 дня','bad'),kpi('Систематическое падение',num(sf)+' SKU','последние 7 дней','warn'),kpi('Сильный рост',num(sg)+' SKU','последние 2 дня','good'),kpi('Систематический рост',num(syg)+' SKU','последние 7 дней','cyan')].join('')}
+function renderKpis(){const gs=getGroups(),m=agg(gs.flatMap(g=>g.rows)),uf=gs.filter(g=>signal(g).urgentFall).length,sf=gs.filter(g=>signal(g).systemFall).length,sg=gs.filter(g=>signal(g).strongGrowth).length,syg=gs.filter(g=>signal(g).systemGrowth).length;$('kpis').innerHTML=[kpi('SKU в периоде',num(gs.length),sdV11(state.from)+' — '+sdV11(state.to)),kpi('Заказы после комиссии WB',money(m.ordersRub),'оценка за выбранный период'),kpi('Заказано, шт.',num(m.ordersQty),''),kpi('Средние заказы / день',num(m.avgOrdersDay),'базовый период'),kpi('Выкуп',pct(m.buyout),num(m.buyoutsQty)+' шт.'),kpi('CPO',money(m.cpo),'базовый период'),kpi('ROI',pct(m.roi),'базовый период'),kpi('Срочное падение',num(uf)+' SKU','последние 2 дня','bad'),kpi('Систематическое падение',num(sf)+' SKU','последние 7 дней','warn'),kpi('Сильный рост',num(sg)+' SKU','последние 2 дня','good'),kpi('Систематический рост',num(syg)+' SKU','последние 7 дней','cyan')].join('')}
 function setQuick(q){state.status='all';$('fStatus').value='all';state.quick=q;state.expanded=null;document.querySelectorAll('.quick').forEach(x=>x.classList.toggle('on',x.dataset.q===q));renderAll()}
 function renderQueues(){const all=groups(DATA.daily.filter(filtersOk)),defs=Object.entries(signalNamesV11);$('queues').innerHTML=defs.map(([q,label])=>{const count=all.filter(g=>signalMatchesV11(signal(g),q)).length;return `<button class="q ${state.quick===q?'on':''}" data-q="${q}"><b>${label}</b><span>${count} SKU</span></button>`}).join('');document.querySelectorAll('.q').forEach(x=>x.onclick=()=>setQuick(x.dataset.q))}
 const COLS=[['status','Статус'],['signal','Сигналы и риски'],['subcategory','Подкатегория'],['sku','SKU'],['ordersRub','Заказы после комиссии WB, ₽'],['ordersQty','Заказы шт.'],['avgOrdersDay','Заказы в день'],['buyoutsQty','Выкуплено шт.'],['buyout','Выкуп %'],['ads','Реклама'],['cpo','CPO'],['roi','ROI'],['profitPerBuyout','ЧП / 1 выкуп'],['urgentDelta','Изм. заказов 2д'],['systemDelta','Изм. заказов 7д']];
