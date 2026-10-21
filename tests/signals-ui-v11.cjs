@@ -51,6 +51,64 @@ for(const [file,mode] of [['index.html','radar'],['financial_updated.html','owne
   assert.equal((cell.match(/class="signal signal-pill/g)||[]).length,1,'Exactly one primary signal per SKU row');
  }
  assert(!elements.get('skuTable').innerHTML.includes('undefined'));assert(!elements.get('priorityListV11').innerHTML.includes('NaN'));
- output[mode]={initial_render:true,search:true,critical_filter:true,conflicting_filters_cleared:true,sku_detail:true,all_priorities:n,data_unchanged:true,one_primary_signal:true,hidden_signal_filter:true,attention_collapsed:true};
+ // Independent sums from immutable input, exercising actual date-control handlers.
+ const run=code=>vm.runInContext(code,c);
+ const data=JSON.parse(initial),first=data.daily.map(r=>r.iso).sort()[0],last=data.daily.map(r=>r.iso).sort().at(-1);
+ assert.equal(data.ordersAmountBasis,'after_commission');
+ assert(!/до\s+комисси/i.test(html));assert(html.includes('Заказы после комиссии WB'));
+ const ids=mode==='owner'?{from:'dateFrom',to:'dateTo',preset:'fWeek'}:{from:'baseFrom',to:'baseTo',preset:'fBase'};
+ const expectedRows=(from,to)=>data.daily.filter(r=>r.iso>=from&&r.iso<=to);
+ const sum=(rows,key)=>rows.reduce((s,r)=>s+(Number(r[key])||0),0);
+ const near=(actual,expected,key)=>assert(Math.abs(actual-expected)<0.00001,`${mode} ${key}: ${actual} != ${expected}`);
+ function checkRange(from,to){
+  assert.equal(run('state.from'),from);assert.equal(run('state.to'),to);
+  assert.equal(elements.get(ids.from).value,from);assert.equal(elements.get(ids.to).value,to);
+  const rows=expectedRows(from,to),actual=JSON.parse(run('JSON.stringify(agg(getGroups().flatMap(g=>g.rows)))'));
+  assert.equal(run('getGroups().flatMap(g=>g.rows).length'),rows.length);
+  for(const key of ['ordersRub','ordersQty','buyoutsQty','ads',...(mode==='owner'?['profit','cost','packing','vat','revenue']:[])])near(actual[key],sum(rows,key),key);
+  const display=elements.get('kpis').innerHTML;
+  assert(display.includes(run('money(agg(getGroups().flatMap(g=>g.rows)).ordersRub)')));
+  if(mode==='owner'){
+   assert.equal(run('managementDailyScopeV9().length'),rows.length);
+   assert(elements.get('dailyKpis').innerHTML.includes(run('money(agg(base()).ordersRub)')));
+   const product=run('getGroups().find(g=>g.rows.length>0).key');
+   const g=run('getGroups().find(g=>g.key==='+JSON.stringify(product)+')');
+   const detailHtml=run('detail(getGroups().find(g=>g.key==='+JSON.stringify(product)+'))');
+   const daily=detailHtml.split('<div class="detailtop">')[1].split('</div></div><div class="box">')[0];
+   const days=[...daily.matchAll(/<tr><td>(\d{2}\.\d{2}\.\d{4})<\/td>/g)].map(m=>m[1]);
+   assert.deepEqual(days,Array.from(g.rows,r=>r.date).sort((a,b)=>b.split('.').reverse().join('-').localeCompare(a.split('.').reverse().join('-'))));
+   const summary=detailHtml.split('<h3>Сводка SKU</h3>')[1].split('<div class="note">')[0];
+   assert(summary.includes(run('money(getGroups().find(g=>g.key==='+JSON.stringify(product)+').m.ordersRub)')));
+   assert(summary.includes(run('money(getGroups().find(g=>g.key==='+JSON.stringify(product)+').m.profit)')));
+  }
+ }
+ run("state.search='';state.quick='all';state.cat='all';state.sub='all';"+(mode==='owner'?"state.cpo='all';state.profit='all';":"state.status='all';"));
+ elements.get(ids.from).value='2026-10-01';elements.get(ids.to).value=last;
+ elements.get(ids.from).onchange();checkRange('2026-10-01',last);
+ assert.equal(elements.get(ids.preset).value,'custom');
+ const signalBeforeRange=run("JSON.stringify(signalEngineV11.evaluate('NMID:1425649630'))");
+ run("openSignalSkuV11('NMID:1425649630')");checkRange('2026-10-01',last);
+ elements.get(ids.from).value='2026-10-08';elements.get(ids.to).value='2026-10-08';elements.get('applyRangeV17').onclick();checkRange('2026-10-08','2026-10-08');
+ elements.get(ids.from).value='2026-09-30';elements.get(ids.to).value='2026-10-02';elements.get(ids.to).onchange();checkRange('2026-09-30','2026-10-02');
+ if(mode==='owner')assert(elements.get('weekGrid').innerHTML.includes('<h3>30.09.2026 — 02.10.2026</h3>'));
+ elements.get(ids.preset).onchange({target:{value:'2026-09-28'}});checkRange('2026-09-28','2026-10-04');
+ const stable=run('JSON.stringify(state)'),stableKpis=elements.get('kpis').innerHTML;
+ const outsideLast=new Date(Date.parse(last+'T00:00:00Z')+86400000).toISOString().slice(0,10);
+ const outsideFirst=new Date(Date.parse(first+'T00:00:00Z')-86400000).toISOString().slice(0,10);
+ for(const [from,to] of [['2026-10-10','2026-10-01'],['','2026-10-10'],['2026-02-30','2026-10-10'],[first,outsideLast],[outsideFirst,last]]){
+  elements.get(ids.from).value=from;elements.get(ids.to).value=to;elements.get('applyRangeV17').onclick();
+  assert.equal(run('JSON.stringify(state)'),stable);assert.equal(elements.get('kpis').innerHTML,stableKpis);
+  assert.equal(elements.get('rangeErrorV17').hidden,false);assert(elements.get('rangeErrorV17').textContent);
+ }
+ elements.get('monthRangeV17').onclick();checkRange(last.slice(0,7)+'-01',last);assert.equal(elements.get('rangeErrorV17').hidden,true);
+ elements.get('last7RangeV17').onclick();checkRange(new Date(Date.parse(last+'T00:00:00Z')-6*86400000).toISOString().slice(0,10),last);
+ elements.get('allRangeV17').onclick();checkRange(first,last);
+ if(mode==='owner'){
+  const d=elements.get('daily');d.classList.add('on');run('renderDaily()');checkRange(first,last);d.classList.remove('on');
+ }
+ assert.equal(run("JSON.stringify(signalEngineV11.evaluate('NMID:1425649630'))"),signalBeforeRange);
+ assert.equal(JSON.stringify(run('DATA')),initial);
+ elements.get('reset').onclick();checkRange(mode==='owner'?'2026-09-01':first,last);
+ output[mode]={initial_render:true,search:true,critical_filter:true,conflicting_filters_cleared:true,sku_detail:true,all_priorities:n,data_unchanged:true,one_primary_signal:true,hidden_signal_filter:true,attention_collapsed:true,date_range:{october:true,single_day:true,partial_week:true,preset_week:true,invalid_input_preserves_totals:true,month:true,last7:true,all_history:true,reset:true,independent_sums_match:true,priority_open_preserves_dates:true},orders_after_commission:true};
 }
 console.log(JSON.stringify(output));

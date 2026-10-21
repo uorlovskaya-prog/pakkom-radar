@@ -59,9 +59,14 @@ function priorityCandidatesV11(){
 }
 function openSignalSkuV11(key){
  if(SIGNAL_SITE_MODE_V11==='radar'){
-  state.base='all';state.from=firstDate;state.to=lastDate;state.status='all';$('fBase').value='all';$('fStatus').value='all';document.querySelectorAll('.customBase').forEach(x=>x.style.display='none');
- }else{state.week='all';state.cpo='all';state.profit='all';$('fWeek').value='all';$('fCpo').value='all';$('fProfit').value='all';document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab==='weekly'));document.querySelectorAll('.section').forEach(x=>x.classList.toggle('on',x.id==='weekly'))}
- state.quick='all';state.expanded=key;renderAll();
+  state.status='all';$('fStatus').value='all';
+  if(!baseRows().some(r=>canonicalSkuKey(r)===key)){state.base='all';state.from=rangeFirstV17;state.to=rangeLastV17}
+ }else{
+  state.cpo='all';state.profit='all';$('fCpo').value='all';$('fProfit').value='all';
+  if(!base().some(r=>canonicalSkuKey(r)===key)){state.week='history';state.from=rangeFirstV17;state.to=rangeLastV17}
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab==='weekly'));document.querySelectorAll('.section').forEach(x=>x.classList.toggle('on',x.id==='weekly'));
+ }
+ syncRangeV17();state.quick='all';state.expanded=key;renderAll();
  const row=[...document.querySelectorAll('tr.skurow')].find(x=>(x.dataset.key||x.dataset.k)===key);if(row)row.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function renderPrioritiesV11(){
@@ -69,7 +74,7 @@ function renderPrioritiesV11(){
  const all=priorityCandidatesV11(),visible=allPrioritiesV11?all:all.slice(0,12),p1=all.filter(x=>x.s.priority===1).length,p2=all.filter(x=>x.s.priority===2).length;
  $('priorityCountsV11').textContent=`Сегодня: ${p1} · Проверить: ${p2}`;
  syncPrioritiesToggleV11();
- $('prioritySummaryV11').textContent=`Данные по ${sdV11(signalEngineV11.asOf)} · Сегодня: ${p1} SKU · Проверить в течение 1–2 дней: ${p2} SKU. Сначала срочность, затем снижение темпа заказов. Категория и поиск учитываются; выбранная неделя и фильтр CPO не скрывают риски здесь.`;
+ $('prioritySummaryV11').textContent=`Данные по ${sdV11(signalEngineV11.asOf)} · Сегодня: ${p1} SKU · Проверить в течение 1–2 дней: ${p2} SKU. Сначала срочность, затем снижение темпа заказов. Категория и поиск учитываются; выбранные даты и фильтр CPO не скрывают риски здесь.`;
  target.innerHTML=visible.length?visible.map(({g,s})=>`<article class="priority-item-v11"><div><span class="priority-level-v11 p${s.priority}">${s.priority===1?'1 · Сегодня':s.priority===2?'2 · Проверить':'3 · Рост'}</span><button class="priority-sku-v11" data-open-signal="${esc(g.key)}">${esc(g.sku)}</button><div class="hint">WB ${esc(g.nmId||'—')}</div></div><div>${signalBadgeV11(s)}<p>${signalSummaryV11(s)}</p><div class="hint">CPO 7д ${money(s.c7.cur.cpo)} · ${cpoNamesV11[s.cpoCode]}</div></div><div>${esc(s.actions[0])}<details><summary>Все проверки</summary><ol>${s.actions.slice(1).map(x=>'<li>'+esc(x)+'</li>').join('')}</ol></details></div></article>`).join(''):'Нет товаров с пороговыми сигналами в выбранной категории / поиске.';
  if(all.length>12)target.innerHTML+=`<button id="allPrioritiesV11">${allPrioritiesV11?'Свернуть до 12':'Показать все '+all.length+' SKU с сигналами'}</button>`;
  document.querySelectorAll('[data-open-signal]').forEach(b=>b.onclick=()=>openSignalSkuV11(b.dataset.openSignal));

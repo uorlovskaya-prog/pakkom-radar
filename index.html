@@ -124,19 +124,32 @@ th{line-height:1.3;letter-spacing:0}
  .detailtop>.box:first-child>h3{flex:0 0 auto}
  .detailtop>.box:first-child>.scroll{height:0;min-height:0;max-height:none!important;flex:1 1 0}
 }
+
+/* PAKKOM_DATE_RANGE_LAYOUT_V17 */
+.date-range-controls-v17{display:flex;gap:7px;align-items:end;flex-wrap:wrap;background:var(--p);border:1px solid var(--bd);padding:8px;border-radius:9px;margin-bottom:8px;min-width:0}
+.date-range-controls-v17 .fg{min-width:0;max-width:100%}
+.date-range-controls-v17 input{min-width:0;width:145px;max-width:100%;color-scheme:dark}
+.date-range-controls-v17 select{max-width:240px;width:100%}
+.range-summary-v17,.range-error-v17{flex-basis:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.4}
+.range-error-v17{color:var(--red)}.range-error-v17[hidden]{display:none}
+.orders-basis-v17{color:var(--mut);font-size:11px;margin:0 0 8px;white-space:normal;line-height:1.4}
 </style>
 </head>
 <body>
 <div class="wrap">
 <header><div><h1>Пакком — SKU Radar</h1><div class="sub">Базовый период + отдельные сигналы последних дней</div></div><div class="meta">Данные по <b id="through"></b></div></header>
 
-<div class="notice" id="basePeriodInfo"><b>Базовый период:</b> весь доступный период до <span id="lastLoadedDate"></span>. Можно переключить на период с 01.09 или выбрать свой.</div>
+<p class="orders-basis-v17">Все суммы заказов — после комиссии WB (оценка). Показатели товаров относятся к выбранным датам.</p>
 <div class="notice"><b>Как читать:</b> показатели таблицы относятся к выбранному периоду. Сигналы и приоритеты проверяют последние 2, 5, 7 дней и прежний недельный уровень независимо от CPO. Подробности — в карточке товара.</div>
 
-<div class="periodbar">
- <div class="fg"><label>Базовый период</label><select id="fBase"><option value="all">Весь период</option><option value="sep">С 1 сентября</option><option value="custom">Свой период</option></select></div>
- <div class="fg customBase" style="display:none"><label>Дата от</label><input id="baseFrom" type="date"></div>
- <div class="fg customBase" style="display:none"><label>Дата до</label><input id="baseTo" type="date"></div>
+<div class="periodbar date-range-controls-v17">
+ <div class="fg"><label for="baseFrom">С даты</label><input id="baseFrom" type="date" lang="ru" aria-describedby="rangeErrorV17"></div>
+ <div class="fg"><label for="baseTo">По дату включительно</label><input id="baseTo" type="date" lang="ru" aria-describedby="rangeErrorV17"></div>
+ <button id="applyRangeV17" type="button">Применить</button>
+ <div class="fg"><label for="fBase">Готовый период</label><select id="fBase"></select></div>
+ <button id="monthRangeV17" type="button">С начала месяца</button><button id="last7RangeV17" type="button">Последние 7 дней</button><button id="allRangeV17" type="button">Вся история</button>
+ <div class="range-summary-v17 hint" id="rangeSummaryV17" role="status" aria-live="polite"></div>
+ <div class="range-error-v17" id="rangeErrorV17" role="alert" hidden></div>
 </div>
 
 <div class="filters">
@@ -420,10 +433,10 @@ function sortValue(g){const s=signal(g),m=g.m;if(state.sort==='urgentDelta')retu
 function pillBase(st){return `<span class="pill ${st.status}">${st.label}</span>`}
 function sigBadge(s){return signalBadgeV11(s)}
 function kpi(l,v,d,c=''){return `<div class="kpi"><div class="l">${l}</div><div class="v ${c}">${v}</div><div class="d">${d||''}</div></div>`}
-function renderKpis(){const gs=getGroups(),m=agg(gs.flatMap(g=>g.rows)),uf=gs.filter(g=>signal(g).urgentFall).length,sf=gs.filter(g=>signal(g).systemFall).length,sg=gs.filter(g=>signal(g).strongGrowth).length,syg=gs.filter(g=>signal(g).systemGrowth).length;$('kpis').innerHTML=[kpi('SKU в периоде',num(gs.length),sdV11(state.from)+' — '+sdV11(state.to)),kpi('Заказы после комиссии',money(m.ordersRub),'оценка за выбранный период'),kpi('Заказы',num(m.ordersQty)+' шт.','количество заказов'),kpi('Средние заказы / день',num(m.avgOrdersDay),'базовый период'),kpi('Выкуп',pct(m.buyout),num(m.buyoutsQty)+' шт.'),kpi('CPO',money(m.cpo),'базовый период'),kpi('ROI',pct(m.roi),'базовый период'),kpi('Срочное падение',num(uf)+' SKU','последние 2 дня','bad'),kpi('Систематическое падение',num(sf)+' SKU','последние 7 дней','warn'),kpi('Сильный рост',num(sg)+' SKU','последние 2 дня','good'),kpi('Систематический рост',num(syg)+' SKU','последние 7 дней','cyan')].join('')}
+function renderKpis(){const gs=getGroups(),m=agg(gs.flatMap(g=>g.rows)),uf=gs.filter(g=>signal(g).urgentFall).length,sf=gs.filter(g=>signal(g).systemFall).length,sg=gs.filter(g=>signal(g).strongGrowth).length,syg=gs.filter(g=>signal(g).systemGrowth).length;$('kpis').innerHTML=[kpi('SKU в периоде',num(gs.length),sdV11(state.from)+' — '+sdV11(state.to)),kpi('Заказы после комиссии WB',money(m.ordersRub),'оценка за выбранный период'),kpi('Заказы',num(m.ordersQty)+' шт.','количество заказов'),kpi('Средние заказы / день',num(m.avgOrdersDay),'базовый период'),kpi('Выкуп',pct(m.buyout),num(m.buyoutsQty)+' шт.'),kpi('CPO',money(m.cpo),'базовый период'),kpi('ROI',pct(m.roi),'базовый период'),kpi('Срочное падение',num(uf)+' SKU','последние 2 дня','bad'),kpi('Систематическое падение',num(sf)+' SKU','последние 7 дней','warn'),kpi('Сильный рост',num(sg)+' SKU','последние 2 дня','good'),kpi('Систематический рост',num(syg)+' SKU','последние 7 дней','cyan')].join('')}
 function setQuick(q){state.status='all';$('fStatus').value='all';state.quick=q;state.expanded=null;document.querySelectorAll('.quick').forEach(x=>x.classList.toggle('on',x.dataset.q===q));renderAll()}
 function renderQueues(){const all=groups(DATA.daily.filter(filtersOk)),defs=Object.entries(signalNamesV11);$('queues').innerHTML=defs.map(([q,label])=>{const count=all.filter(g=>signalMatchesV11(signal(g),q)).length;return `<button class="q ${state.quick===q?'on':''}" data-q="${q}"><b>${label}</b><span>${count} SKU</span></button>`}).join('');document.querySelectorAll('.q').forEach(x=>x.onclick=()=>setQuick(x.dataset.q))}
-const COLS=[['status','Статус'],['signal','Сигналы и риски'],['subcategory','Подкатегория'],['sku','SKU'],['ordersRub','Заказы после комиссии, ₽'],['ordersQty','Заказы шт.'],['avgOrdersDay','Заказы в день'],['buyoutsQty','Выкуплено шт.'],['buyout','Выкуп %'],['ads','Реклама'],['cpo','CPO'],['roi','ROI'],['profitPerBuyout','ЧП / 1 выкуп'],['urgentDelta','Изм. заказов 2д'],['systemDelta','Изм. заказов 7д']];
+const COLS=[['status','Статус'],['signal','Сигналы и риски'],['subcategory','Подкатегория'],['sku','SKU'],['ordersRub','Заказы после комиссии WB, ₽'],['ordersQty','Заказы шт.'],['avgOrdersDay','Заказы в день'],['buyoutsQty','Выкуплено шт.'],['buyout','Выкуп %'],['ads','Реклама'],['cpo','CPO'],['roi','ROI'],['profitPerBuyout','ЧП / 1 выкуп'],['urgentDelta','Изм. заказов 2д'],['systemDelta','Изм. заказов 7д']];
 const sortable=new Set([
  'ordersRub','ordersQty','avgOrdersDay','buyoutsQty','buyout','ads','cpo','roi','profitPerBuyout',
  'urgentDelta','systemDelta'
@@ -440,22 +453,70 @@ function renderTable(){const gs=getGroups();let h='<tr>'+COLS.map(head).join('')
  else { state.sort=k; state.dir=-1; }
  renderTable();
 })}
-function detail(g,sig){const rows=DATA.daily.filter(r=>rowKey(r)===g.key&&r.iso>=state.from&&r.iso<=state.to).sort((a,b)=>b.iso.localeCompare(a.iso));let d='<table><tr><th>Дата</th><th>Заказы после комиссии, ₽</th><th>Заказы</th><th>Выкуп</th><th>Реклама</th><th>CPO</th><th>ROI</th><th>ЧП / 1 выкуп</th></tr>';rows.forEach(r=>d+=`<tr><td>${r.date}</td><td class="num">${money(r.ordersRub)}</td><td class="num">${num(r.ordersQty)}</td><td class="num">${num(r.buyoutsQty)}</td><td class="num">${money(r.ads)}</td><td class="num">${money(r.cpo)}</td><td class="num">${pct(r.roi)}</td><td class="num">${money(r.profitPerBuyout)}</td></tr>`);d+='</table>';return `<tr class="detailrow"><td colspan="${COLS.length}"><div class="detail">${signalEvidenceV11(g)}<div class="detailtop"><div class="box"><h3>Динамика за базовый период</h3><div class="scroll" style="max-height:340px">${d}</div></div><div class="box"><h3>Сигналы</h3><div class="summary"><div class="sum"><div class="sl">Δ последние 2 дня</div><div class="sv">${pct(sig.c2.dO)}</div></div><div class="sum"><div class="sl">Предыдущие 2 дня</div><div class="sv">${num(sig.c2.prev.ordersQty)} заказов</div></div><div class="sum"><div class="sl">Δ последние 7 дней</div><div class="sv">${pct(sig.c7.dO)}</div></div><div class="sum"><div class="sl">Предыдущие 7 дней</div><div class="sv">${num(sig.c7.prev.ordersQty)} заказов</div></div><div class="sum"><div class="sl">Δ CPO 2 дня</div><div class="sv">${pct(sig.c2.dCpo)}</div></div><div class="sum"><div class="sl">Рекомендация</div><div class="sv">${actionText(g)}</div></div></div></div></div></div></td></tr>`}
+function detail(g,sig){const rows=DATA.daily.filter(r=>rowKey(r)===g.key&&r.iso>=state.from&&r.iso<=state.to).sort((a,b)=>b.iso.localeCompare(a.iso));let d='<table><tr><th>Дата</th><th>Заказы после комиссии WB, ₽</th><th>Заказы</th><th>Выкуп</th><th>Реклама</th><th>CPO</th><th>ROI</th><th>ЧП / 1 выкуп</th></tr>';rows.forEach(r=>d+=`<tr><td>${r.date}</td><td class="num">${money(r.ordersRub)}</td><td class="num">${num(r.ordersQty)}</td><td class="num">${num(r.buyoutsQty)}</td><td class="num">${money(r.ads)}</td><td class="num">${money(r.cpo)}</td><td class="num">${pct(r.roi)}</td><td class="num">${money(r.profitPerBuyout)}</td></tr>`);d+='</table>';return `<tr class="detailrow"><td colspan="${COLS.length}"><div class="detail">${signalEvidenceV11(g)}<div class="detailtop"><div class="box"><h3>Динамика за базовый период</h3><div class="scroll" style="max-height:340px">${d}</div></div><div class="box"><h3>Сигналы</h3><div class="summary"><div class="sum"><div class="sl">Δ последние 2 дня</div><div class="sv">${pct(sig.c2.dO)}</div></div><div class="sum"><div class="sl">Предыдущие 2 дня</div><div class="sv">${num(sig.c2.prev.ordersQty)} заказов</div></div><div class="sum"><div class="sl">Δ последние 7 дней</div><div class="sv">${pct(sig.c7.dO)}</div></div><div class="sum"><div class="sl">Предыдущие 7 дней</div><div class="sv">${num(sig.c7.prev.ordersQty)} заказов</div></div><div class="sum"><div class="sl">Δ CPO 2 дня</div><div class="sv">${pct(sig.c2.dCpo)}</div></div><div class="sum"><div class="sl">Рекомендация</div><div class="sv">${actionText(g)}</div></div></div></div></div></div></td></tr>`}
 function fill(el,vals,label){el.innerHTML=`<option value="all">${label}</option>`+vals.map(v=>`<option>${esc(v)}</option>`).join('')}
 function updateSubs(){const vals=[...new Set(DATA.daily.filter(r=>state.cat==='all'||r.category===state.cat).map(r=>r.subcategory))].sort((a,b)=>a.localeCompare(b,'ru'));fill($('fSub'),vals,'Все подкатегории');if(state.sub!=='all'&&!vals.includes(state.sub))state.sub='all';$('fSub').value=state.sub}
-function setBase(){if(state.base==='sep'){state.from='2026-09-01';state.to=lastDate}else if(state.base==='all'){state.from=firstDate;state.to=lastDate}else{state.from=$('baseFrom').value;state.to=$('baseTo').value}}
+function setBase(){return pickRangePresetV17(state.base,false)}
 function renderAll(){renderKpis();renderQueues();renderTable();renderPrioritiesV11()}
 function resetQuick(){state.quick='all';document.querySelectorAll('.quick').forEach(x=>x.classList.toggle('on',x.dataset.q==='all'))}
 function init(){
- $('through').textContent=DATA.through; if($('lastLoadedDate')) $('lastLoadedDate').textContent=DATA.through;$('baseFrom').min=firstDate;$('baseFrom').max=lastDate;$('baseTo').min=firstDate;$('baseTo').max=lastDate;$('baseFrom').value=firstDate;$('baseTo').value=lastDate;state.base='all';state.from=firstDate;state.to=lastDate;
+ $('through').textContent=DATA.through;initRangeV17('all');
  fill($('fCat'),[...new Set(DATA.daily.map(r=>r.category))].sort((a,b)=>a.localeCompare(b,'ru')),'Все категории');updateSubs();
- $('fBase').onchange=e=>{state.base=e.target.value;document.querySelectorAll('.customBase').forEach(x=>x.style.display=state.base==='custom'?'flex':'none');setBase();resetQuick();renderAll()};
- $('baseFrom').onchange=()=>{state.from=$('baseFrom').value;renderAll()};$('baseTo').onchange=()=>{state.to=$('baseTo').value;renderAll()};
  $('fCat').onchange=e=>{state.cat=e.target.value;state.sub='all';updateSubs();resetQuick();renderAll()};$('fSub').onchange=e=>{state.sub=e.target.value;resetQuick();renderAll()};$('fStatus').onchange=e=>{state.status=e.target.value;resetQuick();renderAll()};$('fSearch').oninput=e=>{state.search=e.target.value.trim();renderAll()};
  document.querySelectorAll('.quick').forEach(b=>b.onclick=()=>setQuick(b.dataset.q));
- $('reset').onclick=()=>{state={base:'sep',from:'2026-09-01',to:lastDate,cat:'all',sub:'all',status:'all',search:'',sort:'ordersQty',dir:-1,quick:'all',expanded:null};$('fBase').value='sep';$('fCat').value='all';$('fStatus').value='all';$('fSearch').value='';document.querySelectorAll('.customBase').forEach(x=>x.style.display='none');updateSubs();resetQuick();renderAll()};
+ $('reset').onclick=()=>{state={base:'sep',from:'2026-09-01',to:lastDate,cat:'all',sub:'all',status:'all',search:'',sort:'ordersQty',dir:-1,quick:'all',expanded:null};initRangeV17('all');$('fCat').value='all';$('fStatus').value='all';$('fSearch').value='';updateSubs();resetQuick();renderAll()};
  renderAll()
 }
+/* PAKKOM_DATE_RANGE_V17: one inclusive range for all financial views. */
+const rangeDatesV17=[...new Set(DATA.daily.map(r=>r.iso))].sort();
+const rangeFirstV17=rangeDatesV17[0],rangeLastV17=rangeDatesV17.at(-1);
+function rangeDateLabelV17(value){return String(value).split('-').reverse().join('.')}
+function rangeLabelV17(from=state.from,to=state.to){return rangeDateLabelV17(from)+' — '+rangeDateLabelV17(to)}
+function rangeControlsV17(){return SIGNAL_SITE_MODE_V11==='owner'?{from:'dateFrom',to:'dateTo',preset:'fWeek'}:{from:'baseFrom',to:'baseTo',preset:'fBase'}}
+function rangeErrorV17(from,to){
+ const valid=value=>/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value+'T00:00:00Z'))&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
+ if(!valid(from)||!valid(to))return 'Укажите обе даты полностью.';
+ if(from>to)return 'Дата «С» должна быть не позже даты «По». Показатели пока относятся к прежнему диапазону.';
+ if(from<rangeFirstV17||to>rangeLastV17)return 'Данные доступны с '+rangeDateLabelV17(rangeFirstV17)+' по '+rangeDateLabelV17(rangeLastV17)+'. Выберите даты внутри этого диапазона.';
+ return '';
+}
+function syncRangeV17(){
+ const ids=rangeControlsV17();
+ $(ids.from).value=state.from;$(ids.to).value=state.to;
+ $(ids.preset).value=SIGNAL_SITE_MODE_V11==='owner'?state.week:state.base;
+ $('rangeSummaryV17').textContent='Показано: '+rangeLabelV17()+' включительно · Данные доступны: '+rangeLabelV17(rangeFirstV17,rangeLastV17);
+ $('rangeErrorV17').textContent='';$('rangeErrorV17').hidden=true;
+ $(ids.from).setAttribute('aria-invalid','false');$(ids.to).setAttribute('aria-invalid','false');
+}
+function setRangeV17(from,to,preset='custom',render=true){
+ const error=rangeErrorV17(from,to),ids=rangeControlsV17();
+ if(error){$('rangeErrorV17').textContent=error;$('rangeErrorV17').hidden=false;$(ids.from).setAttribute('aria-invalid','true');$(ids.to).setAttribute('aria-invalid','true');return false}
+ state.from=from;state.to=to;state.expanded=null;
+ if(SIGNAL_SITE_MODE_V11==='owner')state.week=preset;else state.base=preset;
+ syncRangeV17();if(render)renderAll();return true;
+}
+function pickRangePresetV17(preset,render=true){
+ if(preset==='custom')return setRangeV17(state.from,state.to,'custom',render);
+ let from=rangeFirstV17,to=rangeLastV17;
+ if(preset==='sep'||(preset==='all'&&SIGNAL_SITE_MODE_V11==='owner'))from=rangeLastV17>='2026-09-01'?['2026-09-01',rangeFirstV17].sort().at(-1):rangeFirstV17;
+ else if(preset==='month')from=[rangeLastV17.slice(0,7)+'-01',rangeFirstV17].sort().at(-1);
+ else if(preset==='last7')from=[new Date(Date.parse(rangeLastV17+'T00:00:00Z')-6*86400000).toISOString().slice(0,10),rangeFirstV17].sort().at(-1);
+ else{const week=DATA.weeks.find(w=>w.key===preset);if(week){from=[week.start,rangeFirstV17].sort().at(-1);to=[week.end,rangeLastV17].sort()[0]}}
+ return setRangeV17(from,to,preset,render);
+}
+function applyRangeInputsV17(){const ids=rangeControlsV17();return setRangeV17($(ids.from).value,$(ids.to).value)}
+function initRangeV17(defaultPreset){
+ const owner=SIGNAL_SITE_MODE_V11==='owner',ids=rangeControlsV17();
+ $(ids.preset).innerHTML=(owner?'<option value="all">С 01.09.2026</option><option value="history">Вся история</option>':'<option value="all">Вся история</option><option value="sep">С 01.09.2026</option>')+'<option value="month">С начала месяца</option><option value="last7">Последние 7 дней</option><option value="custom">Свои даты</option>'+DATA.weeks.map(w=>'<option value="'+w.key+'">'+rangeLabelV17(w.start,w.end)+'</option>').join('');
+ for(const id of [ids.from,ids.to]){$(id).min=rangeFirstV17;$(id).max=rangeLastV17;$(id).onchange=applyRangeInputsV17;$(id).onkeydown=e=>{if(e.key==='Enter')applyRangeInputsV17()}}
+ $(ids.preset).onchange=e=>pickRangePresetV17(e.target.value);
+ $('applyRangeV17').onclick=applyRangeInputsV17;
+ $('monthRangeV17').onclick=()=>pickRangePresetV17('month');
+ $('last7RangeV17').onclick=()=>pickRangePresetV17('last7');
+ $('allRangeV17').onclick=()=>pickRangePresetV17(owner?'history':'all');
+ pickRangePresetV17(defaultPreset,false);
+}
+
 const SIGNAL_SITE_MODE_V11="radar";
 /* PAKKOM_SIGNALS_UI_V11_BEGIN */
 const signalEngineV11=createPakkomSignalsV11(DATA.daily,canonicalSkuKey);
@@ -518,9 +579,14 @@ function priorityCandidatesV11(){
 }
 function openSignalSkuV11(key){
  if(SIGNAL_SITE_MODE_V11==='radar'){
-  state.base='all';state.from=firstDate;state.to=lastDate;state.status='all';$('fBase').value='all';$('fStatus').value='all';document.querySelectorAll('.customBase').forEach(x=>x.style.display='none');
- }else{state.week='all';state.cpo='all';state.profit='all';$('fWeek').value='all';$('fCpo').value='all';$('fProfit').value='all';document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab==='weekly'));document.querySelectorAll('.section').forEach(x=>x.classList.toggle('on',x.id==='weekly'))}
- state.quick='all';state.expanded=key;renderAll();
+  state.status='all';$('fStatus').value='all';
+  if(!baseRows().some(r=>canonicalSkuKey(r)===key)){state.base='all';state.from=rangeFirstV17;state.to=rangeLastV17}
+ }else{
+  state.cpo='all';state.profit='all';$('fCpo').value='all';$('fProfit').value='all';
+  if(!base().some(r=>canonicalSkuKey(r)===key)){state.week='history';state.from=rangeFirstV17;state.to=rangeLastV17}
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab==='weekly'));document.querySelectorAll('.section').forEach(x=>x.classList.toggle('on',x.id==='weekly'));
+ }
+ syncRangeV17();state.quick='all';state.expanded=key;renderAll();
  const row=[...document.querySelectorAll('tr.skurow')].find(x=>(x.dataset.key||x.dataset.k)===key);if(row)row.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function renderPrioritiesV11(){
@@ -528,7 +594,7 @@ function renderPrioritiesV11(){
  const all=priorityCandidatesV11(),visible=allPrioritiesV11?all:all.slice(0,12),p1=all.filter(x=>x.s.priority===1).length,p2=all.filter(x=>x.s.priority===2).length;
  $('priorityCountsV11').textContent=`Сегодня: ${p1} · Проверить: ${p2}`;
  syncPrioritiesToggleV11();
- $('prioritySummaryV11').textContent=`Данные по ${sdV11(signalEngineV11.asOf)} · Сегодня: ${p1} SKU · Проверить в течение 1–2 дней: ${p2} SKU. Сначала срочность, затем снижение темпа заказов. Категория и поиск учитываются; выбранная неделя и фильтр CPO не скрывают риски здесь.`;
+ $('prioritySummaryV11').textContent=`Данные по ${sdV11(signalEngineV11.asOf)} · Сегодня: ${p1} SKU · Проверить в течение 1–2 дней: ${p2} SKU. Сначала срочность, затем снижение темпа заказов. Категория и поиск учитываются; выбранные даты и фильтр CPO не скрывают риски здесь.`;
  target.innerHTML=visible.length?visible.map(({g,s})=>`<article class="priority-item-v11"><div><span class="priority-level-v11 p${s.priority}">${s.priority===1?'1 · Сегодня':s.priority===2?'2 · Проверить':'3 · Рост'}</span><button class="priority-sku-v11" data-open-signal="${esc(g.key)}">${esc(g.sku)}</button><div class="hint">WB ${esc(g.nmId||'—')}</div></div><div>${signalBadgeV11(s)}<p>${signalSummaryV11(s)}</p><div class="hint">CPO 7д ${money(s.c7.cur.cpo)} · ${cpoNamesV11[s.cpoCode]}</div></div><div>${esc(s.actions[0])}<details><summary>Все проверки</summary><ol>${s.actions.slice(1).map(x=>'<li>'+esc(x)+'</li>').join('')}</ol></details></div></article>`).join(''):'Нет товаров с пороговыми сигналами в выбранной категории / поиске.';
  if(all.length>12)target.innerHTML+=`<button id="allPrioritiesV11">${allPrioritiesV11?'Свернуть до 12':'Показать все '+all.length+' SKU с сигналами'}</button>`;
  document.querySelectorAll('[data-open-signal]').forEach(b=>b.onclick=()=>openSignalSkuV11(b.dataset.openSignal));
