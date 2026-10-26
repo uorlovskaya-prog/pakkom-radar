@@ -16,8 +16,9 @@ const output={};
 for(const [file,mode] of [['index.html','radar'],['financial_updated.html','owner']]){
  const p=path.join(D,file);if(!fs.existsSync(p)){if(mode==='owner')continue;throw Error('Missing radar')}
  const html=fs.readFileSync(p,'utf8'),{c,elements,quick}=fixture(html);
- const initial=JSON.stringify(vm.runInContext('DATA',c));assert(elements.get('priorityListV11').innerHTML.includes('ложки премиум 100 шт белые'));
- vm.runInContext("state.search='1338773722';renderAll();",c);
+ const initial=JSON.stringify(vm.runInContext('DATA',c));assert(vm.runInContext('priorityCandidatesV11().length>0',c));
+ const riskKey=vm.runInContext("signalEngineV11.keys.find(k=>{const s=signalEngineV11.evaluate(k);return k.startsWith('NMID:')&&s.criticalFall&&s.longFall&&!s.stopped&&!s.adsNoOrders})",c);assert(riskKey,'Current history needs a critical long-fall UI fixture');const riskId=riskKey.slice(5);
+ vm.runInContext("state.search='"+riskId+"';renderAll();",c);
  assert(elements.get('skuTable').innerHTML.includes('Критическое падение заказов'));
  if(mode==='radar'){
   vm.runInContext("state.status='scale';setQuick('criticalfall');",c);assert.equal(vm.runInContext('state.status',c),'all');assert.equal(vm.runInContext('getGroups().length',c),1);
@@ -26,9 +27,9 @@ for(const [file,mode] of [['index.html','radar'],['financial_updated.html','owne
   vm.runInContext("state.cpo='control';state.profit='negative';selectManagementQuickV9('criticalfall');",c);assert.equal(vm.runInContext('state.cpo',c),'all');assert.equal(vm.runInContext('state.profit',c),'all');assert.equal(vm.runInContext('getGroups().length',c),1);
   assert.equal(vm.runInContext("zone({ads:100,ordersQty:0,cpo:null,cpoStd:10,cpoMax:20}).code",c),'critical');
  }
- vm.runInContext("openSignalSkuV11('NMID:1338773722')",c);assert(elements.get('skuTable').innerHTML.includes('102,5'));assert(elements.get('skuTable').innerHTML.includes('15.10.2026'));assert(elements.get('skuTable').innerHTML.includes('Следующие действия'));
- vm.runInContext("state.search='1425649630';renderAll();",c);
- const teaBefore=vm.runInContext("JSON.stringify(signalEngineV11.evaluate('NMID:1425649630'))",c);
+ vm.runInContext("openSignalSkuV11('"+riskKey+"')",c);assert(elements.get('skuTable').innerHTML.includes(vm.runInContext('DATA.through',c)));assert(elements.get('skuTable').innerHTML.includes('Следующие действия'));
+ vm.runInContext("state.search='"+riskId+"';renderAll();",c);
+ const teaBefore=vm.runInContext("JSON.stringify(signalEngineV11.evaluate('"+riskKey+"'))",c);
  const teaRow=elements.get('skuTable').innerHTML.match(/<tr class="skurow"[\s\S]*?<\/tr>/)[0];
  const teaSignals=teaRow.match(/<td class="signal-column-v11">([\s\S]*?)<\/td>/)[1];
  assert.equal((teaSignals.match(/class="signal signal-pill/g)||[]).length,1);
@@ -36,13 +37,13 @@ for(const [file,mode] of [['index.html','radar'],['financial_updated.html','owne
  assert(!teaSignals.includes('Длительное снижение'));
  vm.runInContext(mode==='radar'?"setQuick('longfall')":"selectManagementQuickV9('longfall')",c);
  assert.equal(vm.runInContext('getGroups().length',c),1,'Hidden secondary signal must still filter the SKU');
- assert.equal(vm.runInContext('getGroups()[0].key',c),'NMID:1425649630');
- vm.runInContext("openSignalSkuV11('NMID:1425649630')",c);
+ assert.equal(vm.runInContext('getGroups()[0].key',c),riskKey);
+ vm.runInContext("openSignalSkuV11('"+riskKey+"')",c);
  const attention=elements.get('skuTable').innerHTML;
  assert(attention.includes('Длительное снижение'));
  assert(attention.includes('<details class="signal-evidence-v11 signal-evidence-collapsed-v15">'));
  assert(attention.includes('<summary>Что требует внимания '));
- assert.equal(vm.runInContext("JSON.stringify(signalEngineV11.evaluate('NMID:1425649630'))",c),teaBefore,'Display must not mutate signal flags or labels');
+ assert.equal(vm.runInContext("JSON.stringify(signalEngineV11.evaluate('"+riskKey+"'))",c),teaBefore,'Display must not mutate signal flags or labels');
  if(mode==='owner'){assert(attention.includes('<h3>Сводка SKU</h3>'));assert(attention.includes('Сценарий при 80% выкупе'));}
  vm.runInContext("state.search='';renderAll();",c);const n=vm.runInContext('priorityCandidatesV11().length',c);assert(n>12);vm.runInContext('allPrioritiesV11=true;renderPrioritiesV11()',c);assert.equal((elements.get('priorityListV11').innerHTML.match(/data-open-signal=/g)||[]).length,n);
  assert.equal(JSON.stringify(vm.runInContext('DATA',c)),initial);
@@ -86,8 +87,9 @@ for(const [file,mode] of [['index.html','radar'],['financial_updated.html','owne
  elements.get(ids.from).value='2026-10-01';elements.get(ids.to).value=last;
  elements.get(ids.from).onchange();checkRange('2026-10-01',last);
  assert.equal(elements.get(ids.preset).value,'custom');
- const signalBeforeRange=run("JSON.stringify(signalEngineV11.evaluate('NMID:1425649630'))");
- run("openSignalSkuV11('NMID:1425649630')");checkRange('2026-10-01',last);
+ if(last>='2026-10-25'){elements.get(ids.from).value='2026-10-20';elements.get(ids.to).value='2026-10-25';elements.get('applyRangeV17').onclick();checkRange('2026-10-20','2026-10-25');elements.get(ids.from).value='2026-10-01';elements.get(ids.to).value=last;elements.get('applyRangeV17').onclick();}
+ const signalBeforeRange=run("JSON.stringify(signalEngineV11.evaluate('"+riskKey+"'))");
+ run("openSignalSkuV11('"+riskKey+"')");checkRange('2026-10-01',last);
  elements.get(ids.from).value='2026-10-08';elements.get(ids.to).value='2026-10-08';elements.get('applyRangeV17').onclick();checkRange('2026-10-08','2026-10-08');
  elements.get(ids.from).value='2026-09-30';elements.get(ids.to).value='2026-10-02';elements.get(ids.to).onchange();checkRange('2026-09-30','2026-10-02');
  if(mode==='owner')assert(elements.get('weekGrid').innerHTML.includes('<h3>30.09.2026 — 02.10.2026</h3>'));
@@ -106,7 +108,7 @@ for(const [file,mode] of [['index.html','radar'],['financial_updated.html','owne
  if(mode==='owner'){
   const d=elements.get('daily');d.classList.add('on');run('renderDaily()');checkRange(first,last);d.classList.remove('on');
  }
- assert.equal(run("JSON.stringify(signalEngineV11.evaluate('NMID:1425649630'))"),signalBeforeRange);
+ assert.equal(run("JSON.stringify(signalEngineV11.evaluate('"+riskKey+"'))"),signalBeforeRange);
  assert.equal(JSON.stringify(run('DATA')),initial);
  elements.get('reset').onclick();checkRange(mode==='owner'?'2026-09-01':first,last);
  output[mode]={initial_render:true,search:true,critical_filter:true,conflicting_filters_cleared:true,sku_detail:true,all_priorities:n,data_unchanged:true,one_primary_signal:true,hidden_signal_filter:true,attention_collapsed:true,date_range:{october:true,single_day:true,partial_week:true,preset_week:true,invalid_input_preserves_totals:true,month:true,last7:true,all_history:true,reset:true,independent_sums_match:true,priority_open_preserves_dates:true},orders_after_commission:true};
