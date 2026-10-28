@@ -55,8 +55,8 @@ for(const [file,mode] of [['index.html','radar'],['financial_updated.html','owne
  // Independent sums from immutable input, exercising actual date-control handlers.
  const run=code=>vm.runInContext(code,c);
  const data=JSON.parse(initial),first=data.daily.map(r=>r.iso).sort()[0],last=data.daily.map(r=>r.iso).sort().at(-1);
- assert.equal(data.ordersAmountBasis,'after_commission');
- assert(!/до\s+комисси/i.test(html));assert(html.includes('Заказы после комиссии WB'));
+ assert.equal(data.ordersAmountBasis,'before_commission_estimate');assert.equal(data.ordersCommissionRate,0.30);for(const row of data.daily)assert(Math.abs(row.ordersRub*0.70-row.ordersNetRub)<1e-7);
+ assert(!html.includes('Заказы после комиссии WB'));assert(html.includes('Заказы с комиссией WB'));
  const ids=mode==='owner'?{from:'dateFrom',to:'dateTo',preset:'fWeek'}:{from:'baseFrom',to:'baseTo',preset:'fBase'};
  const expectedRows=(from,to)=>data.daily.filter(r=>r.iso>=from&&r.iso<=to);
  const sum=(rows,key)=>rows.reduce((s,r)=>s+(Number(r[key])||0),0);
@@ -111,6 +111,6 @@ for(const [file,mode] of [['index.html','radar'],['financial_updated.html','owne
  assert.equal(run("JSON.stringify(signalEngineV11.evaluate('"+riskKey+"'))"),signalBeforeRange);
  assert.equal(JSON.stringify(run('DATA')),initial);
  elements.get('reset').onclick();checkRange(mode==='owner'?'2026-09-01':first,last);
- output[mode]={initial_render:true,search:true,critical_filter:true,conflicting_filters_cleared:true,sku_detail:true,all_priorities:n,data_unchanged:true,one_primary_signal:true,hidden_signal_filter:true,attention_collapsed:true,date_range:{october:true,single_day:true,partial_week:true,preset_week:true,invalid_input_preserves_totals:true,month:true,last7:true,all_history:true,reset:true,independent_sums_match:true,priority_open_preserves_dates:true},orders_after_commission:true};
+ output[mode]={initial_render:true,search:true,critical_filter:true,conflicting_filters_cleared:true,sku_detail:true,all_priorities:n,data_unchanged:true,one_primary_signal:true,hidden_signal_filter:true,attention_collapsed:true,date_range:{october:true,single_day:true,partial_week:true,preset_week:true,invalid_input_preserves_totals:true,month:true,last7:true,all_history:true,reset:true,independent_sums_match:true,priority_open_preserves_dates:true},orders_including_commission:true};
 }
 console.log(JSON.stringify(output));
