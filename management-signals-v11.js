@@ -2,6 +2,42 @@
    Orders, advertising and demand are independent. Read immutable source rows.
    Calendar windows end on the last loaded report date, never on wall-clock today.
 */
+/* PAKKOM_CPO_LEVELS_V1: compare rubles per order, never DRR percentages. */
+const PAKKOM_CPO_LEVELS_V1={
+ verylow:{label:'Сильно ниже нормы',action:'Низкая стоимость заказа. Проверь объём заказов и показы: низкий CPO сам по себе не означает нехватку рекламы.'},
+ below:{label:'Ниже нормы',action:'Заказ дешевле ориентира. Сохраняй эффективные кампании; рост бюджета — после проверки спроса, остатков и маржи.'},
+ normal:{label:'Норма',action:'CPO рядом со стандартом. Поддерживай ставки и проверяй объём заказов.'},
+ control:{label:'Контроль',action:'CPO выше рабочего ориентира. Проверь ставки, фразы и конверсию; не расширяй бюджет до проверки.'},
+ maximum:{label:'У максимума',action:'До рекламного предела осталось не больше 10%. Снизь дорогие ставки и проверь маржу до следующего увеличения бюджета.'},
+ above:{label:'Выше максимума',action:'Сегодня: CPO превысил рекламный предел. Снизь ставки и ограничь неэффективные кампании; проверь результат после нового дня.'},
+ critical:{label:'Критично',action:'Сегодня: CPO более чем на 20% выше max. Приостанови неэффективные кампании после проверки расходов и заказов по ним; пересчитай допустимые ставки.'},
+ noorders:{label:'Расход без заказов',action:'Сегодня: есть рекламный расход, но нет заказов. Проверь активность карточки и учёт заказов; ограничь кампании, которые тратят без результата.'},
+ none:{label:'Без рекламы',action:'Рекламного расхода нет. Оцени спрос и остатки перед запуском.'},
+ unknown:{label:'Нет данных',action:'Не хватает данных или положительного норматива CPO. Проверь стандарт и max перед решением о рекламе.'}
+};
+function pakkomCpoLevelV1(s){
+ const finite=v=>typeof v==='number'&&Number.isFinite(v),positive=v=>finite(v)&&v>0;
+ const result=code=>({code,...PAKKOM_CPO_LEVELS_V1[code]});
+ if(!finite(s.ads)||s.ads<0||!finite(s.ordersQty)||s.ordersQty<0)return result('unknown');
+ if(s.ads===0)return result('none');
+ if(s.ordersQty===0)return result('noorders');
+ const cpo=s.ads/s.ordersQty,max=s.cpoMax,std=s.cpoStd,eps=1e-9;
+ // Max wins even when the catalog standard is higher. Never show a loss-risk band as normal.
+ if(positive(max)){
+  if(cpo>max*1.20+eps)return result('critical');
+  if(cpo>max+eps)return result('above');
+  if(cpo>=max*.90-eps)return result('maximum');
+ }
+ if(!positive(std)||!positive(max))return result('unknown');
+ if(cpo<std*.70-eps)return result('verylow');
+ if(cpo<std*.90-eps)return result('below');
+ if(cpo<=std*1.10+eps)return result('normal');
+ return result('control');
+}
+const pakkomCpoUrgentV1=code=>['above','critical','noorders'].includes(code);
+const pakkomCpoWatchV1=code=>['control','maximum'].includes(code);
+const pakkomCpoSafeV1=code=>['verylow','below','normal','none'].includes(code);
+
 function createPakkomSignalsV11(rows, keyOf) {
  'use strict';
  const DAY=86400000,day=s=>Date.parse(s+'T00:00:00Z'),iso=t=>new Date(t).toISOString().slice(0,10);
@@ -44,12 +80,12 @@ function createPakkomSignalsV11(rows, keyOf) {
   const cpoWorse=[c2,c7].some((c,i)=>c.valid&&c.cur.ads>0&&c.prev.ads>0&&c.cur.ordersQty>=(i?14:6)&&c.prev.ordersQty>=(i?14:6)&&c.dCpo>=.25);
   const lastRate=field=>[...source].reverse().find(r=>Number.isFinite(r[field]))?.[field]??null;
   const cpoStd=lastRate('cpoStd'),cpoMax=lastRate('cpoMax');
-  let cpoCode='unknown';
-  if(c7.cur.complete){if(c7.cur.ads===0)cpoCode='none';else if(c7.cur.ordersQty===0)cpoCode='critical';else if(cpoMax!==null&&c7.cur.cpo>cpoMax)cpoCode='critical';else if(cpoStd!==null)cpoCode=c7.cur.cpo>cpoStd?'control':'normal'}
+  const cpoLevel=c7.cur.complete?pakkomCpoLevelV1({...c7.cur,cpoStd,cpoMax}):{code:'unknown',...PAKKOM_CPO_LEVELS_V1.unknown};
+  const cpoCode=cpoLevel.code;
   const demandFall=urgentFall||systemFall||sustainedFall||longFall||stopped||inactive;
   const comparisons=[sustainedFall?[c5.dO,(expected5-cur5.ordersQty)*7/5]:null,systemFall?[c7.dO,c7.prev.ordersQty-c7.cur.ordersQty]:null,longFall?[long.dO,baselineWeek-c7.cur.ordersQty]:null,urgentFall?[c2.dO,(c2.prev.ordersQty-c2.cur.ordersQty)*7/2]:null].filter(Boolean);
   const lostPace=Math.max(0,...comparisons.map(c=>c[1]));
-  let priority=criticalFall||adsNoOrders||cpoCode==='critical'?1:demandFall||cpoCode==='control'||cpoWorse?2:strongGrowth||systemGrowth?3:4;
+  let priority=criticalFall||adsNoOrders||pakkomCpoUrgentV1(cpoCode)?1:demandFall||pakkomCpoWatchV1(cpoCode)||cpoWorse?2:strongGrowth||systemGrowth?3:4;
   const labels=[];
   if(stopped)labels.push('Нет заказов 3 дня');
   if(inactive&&!stopped)labels.push('Нет заказов 7 дней');
@@ -59,8 +95,7 @@ function createPakkomSignalsV11(rows, keyOf) {
   if(systemFall)labels.push('Падение за неделю');
   if(urgentFall)labels.push('Падение за 2 дня');
   if(adsNoOrders)labels.push('Реклама без заказов 3 дня');
-  if(cpoCode==='critical')labels.push(c7.cur.ordersQty===0?'Расход рекламы без заказов':'CPO выше максимума');
-  else if(cpoCode==='control')labels.push('CPO выше стандарта');
+  if(pakkomCpoUrgentV1(cpoCode)||pakkomCpoWatchV1(cpoCode))labels.push(({critical:'CPO критично выше max',above:'CPO выше максимума',maximum:'CPO у максимума',noorders:'Расход рекламы без заказов',control:'CPO выше стандарта'})[cpoCode]);
   if(cpoWorse)labels.push('CPO ухудшился');
   if(strongGrowth)labels.push(demandFall?'Отскок за 2 дня':'Рост за 2 дня');
   if(systemGrowth)labels.push(demandFall?'Отскок за неделю':'Рост за неделю');
@@ -70,20 +105,21 @@ function createPakkomSignalsV11(rows, keyOf) {
    actions.push('Сегодня: проверить доступный остаток по складам и срок доставки карточки.');
    if(c5.valid&&c5.dAds<=-.3)actions.push('Проверить снижение расхода рекламы: активность кампаний, бюджет, показы и позиции.');
    else actions.push('Сопоставить показы, переходы и конверсию в заказ; проверить цену и участие в акциях.');
-   actions.push(cpoCode==='critical'||adsNoOrders?'Ограничить кампании с дорогим заказом после проверки; проверить результат на следующий день.':'Сохранить рабочие кампании в пределах норматива CPO; после проверки причин контролировать заказы ежедневно.');
-  }else if(adsNoOrders||cpoCode==='critical'){
+   actions.push(pakkomCpoUrgentV1(cpoCode)||adsNoOrders?'Ограничить кампании с дорогим заказом после проверки; проверить результат на следующий день.':'Сохранить рабочие кампании в пределах норматива CPO; после проверки причин контролировать заказы ежедневно.');
+  }else if(adsNoOrders||pakkomCpoUrgentV1(cpoCode)){
    actions.push('Сегодня: проверить кампании с расходом и без заказов, наличие товара и доступность карточки.');
    actions.push('Сопоставить расходы и заказы по кампаниям; ограничить неэффективные ставки, затем проверить конверсию.');
-  }else if(cpoCode==='control'||cpoWorse){
+  }else if(pakkomCpoWatchV1(cpoCode)||cpoWorse){
    actions.push('В течение 1–2 дней: проверить рост ставок, поисковые фразы и конверсию; бюджет расширять после возврата CPO в норматив.');
   }else if(strongGrowth||systemGrowth){
    actions.push('Проверить запас по складам на текущий темп и срок следующей поставки.');
-   actions.push(cpoCode==='normal'?'После проверки остатков и маржи увеличить бюджет небольшим шагом и сравнить CPO и заказы.':'Сначала подтвердить остатки и экономику, затем решить вопрос об увеличении рекламы.');
+   actions.push(pakkomCpoSafeV1(cpoCode)?'После проверки остатков и маржи увеличить бюджет небольшим шагом и сравнить CPO и заказы.':'Сначала подтвердить остатки и экономику, затем решить вопрос об увеличении рекламы.');
   }else actions.push('Плановый контроль заказов, остатков и CPO; следующая проверка после загрузки нового дня.');
+  if(pakkomCpoUrgentV1(cpoCode))actions.unshift(cpoLevel.action);else actions.push(cpoLevel.action);
   const result={key,asOf:last,priority,labels,actions,c2,c7,c5,long,cur3,cpoCode,cpoStd,cpoMax,cpoWorse,urgentFall,systemFall,sustainedFall,longFall,stopped,inactive,adsNoOrders,criticalFall,demandFall,strongGrowth,systemGrowth,lostPace,d2:c2.dO,d7:c7.dO,dcpo:c2.dCpo,complete:c7.cur.complete};
   cache.set(key,result);return result;
  }
  return {evaluate,keys:[...registry.keys()],asOf:last,dates};
 }
-if(typeof module!=='undefined'&&module.exports)module.exports={createPakkomSignalsV11};
+if(typeof module!=='undefined'&&module.exports)module.exports={createPakkomSignalsV11,pakkomCpoLevelV1,PAKKOM_CPO_LEVELS_V1};
 /* PAKKOM_SIGNALS_V11_END */

@@ -138,6 +138,11 @@ th{line-height:1.3;letter-spacing:0}
 header{justify-content:flex-end;flex-direction:row;align-items:center;padding-bottom:5px;margin-bottom:7px}
 header .meta{text-align:right;margin-left:auto}
 #rangeSummaryV17[hidden],#managementFilterSelection[hidden]{display:none}
+
+/* PAKKOM_CPO_LEVELS_V1: compact single-line status, existing column widths unchanged. */
+.cpo-level-v1{display:inline-block;max-width:100%;box-sizing:border-box;white-space:nowrap!important;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;font-size:9px;line-height:1.25;padding:2px 4px}
+.cpo-verylow{color:#a5f3fc;border-color:#0891b2;background:#083344}.cpo-below{color:#93c5fd;border-color:#2563eb;background:#172554}.cpo-normal{color:#bbf7d0;border-color:#166534;background:#052e16}.cpo-control{color:#fde68a;border-color:#854d0e;background:#422006}.cpo-maximum{color:#fed7aa;border-color:#ea580c;background:#431407}.cpo-above{color:#fecaca;border-color:#ef4444;background:#450a0a}.cpo-critical,.cpo-noorders{color:#fff;border-color:#fb7185;background:#9f1239}.cpo-none,.cpo-unknown{color:#cbd5e1;border-color:#475569;background:#0f172a}
+.cpo-legend-v1{margin:7px 0;font-size:11px}.cpo-legend-v1 summary{cursor:pointer;color:var(--mut)}.cpo-legend-v1 p{margin:8px 0}.cpo-dot-v1{display:inline-block;width:6px;height:6px;border:1px solid;border-radius:50%;margin-right:3px;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -158,6 +163,7 @@ header .meta{text-align:right;margin-left:auto}
 <div class="filters">
  <div class="fg"><label>Категория</label><select id="fCat"></select></div>
  <div class="fg"><label>Подкатегория</label><select id="fSub"></select></div>
+ <div class="fg"><label>CPO статус</label><select id="fCpo"><option value="all">Все</option><option value="verylow">Сильно ниже нормы</option><option value="below">Ниже нормы</option><option value="normal">Норма</option><option value="control">Контроль</option><option value="maximum">У максимума</option><option value="above">Выше максимума</option><option value="critical">Критично</option><option value="noorders">Расход без заказов</option><option value="none">Без рекламы</option><option value="unknown">Нет данных</option></select></div>
  <div class="fg"><label>Статус</label><select id="fStatus"><option value="all">Все</option><option value="scale">Кандидат на рост</option><option value="strong">Сильный / держать</option><option value="control">Контроль</option><option value="urgent">Срочно</option><option value="low">Низкий спрос</option></select></div>
  <div class="fg"><label>Поиск SKU</label><input id="fSearch" type="search" placeholder="Название / nmId"></div>
  <button id="reset">Сброс</button>
@@ -176,6 +182,11 @@ header .meta{text-align:right;margin-left:auto}
 </div>
 
 <div id="kpis" class="kpis"></div>
+<details class="cpo-legend-v1"><summary>Как читать статусы рекламы</summary><div class="hint">
+<p>Статус сравнивает CPO факт (расход рекламы / все заказы SKU) со стандартом и max. ДРР отдельно показывает долю рекламы в сумме заказов. Это общий CPO товара, а не атрибуция заказов отдельной кампании.</p>
+<ul><li><b>Сильно ниже нормы:</b> меньше 70% стандарта.</li><li><b>Ниже нормы:</b> от 70% до 90% стандарта.</li><li><b>Норма:</b> от 90% до 110% стандарта.</li><li><b>Контроль:</b> выше 110% стандарта, но ниже 90% max.</li><li><b>У максимума:</b> от 90% до 100% max — рекламный запас почти исчерпан.</li><li><b>Выше максимума:</b> выше max, но не более чем на 20%.</li><li><b>Критично:</b> более 120% max.</li></ul>
+<p>Уровни max проверяются первыми, даже если стандарт выше max. Без рекламы и расход без заказов — отдельные статусы. Низкий CPO не доказывает недостаток рекламы: проверяй также объём заказов.</p>
+<p>CPO max из справочника рассчитан с выкупом 70%: это предел по модели, а не точное обнуление фактической ЧП. Прибыль после рекламы и НДС — в финансовом отчёте. Статусы в таблице относятся к выбранным датам; сигналы рекламы — к последним 7 дням. Норматив — последний доступный внутри выбранного периода.</p></div></details>
 <div class="card" id="prioritiesV11"><div class="cardhead priority-head-v11"><h2>Что проверить в первую очередь</h2><span class="hint" id="priorityCountsV11"></span><button type="button" id="priorityToggleV11" aria-expanded="false" aria-controls="priorityBodyV11">Показать</button></div><div id="priorityBodyV11" hidden><div class="hint" id="prioritySummaryV11" style="padding:0 12px 10px"></div><div id="priorityListV11"></div></div></div>
 
 <div class="card"><div class="cardhead"><h2>Сигналы по SKU</h2><div class="hint">Сигналы последних дней считаются независимо от базового периода</div></div><div id="queues" class="queuegrid"></div></div>
@@ -204,7 +215,7 @@ const nf=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}),pf=new Intl.Nu
 const money=v=>Number.isFinite(v)?nf.format(v)+' ₽':'—',num=v=>Number.isFinite(v)?nf.format(v):'—',pct=v=>Number.isFinite(v)?pf.format(v):'—',n=v=>Number.isFinite(Number(v))?Number(v):0;
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const dates=[...new Set(DATA.daily.map(r=>r.iso))].sort(),firstDate=dates[0],lastDate=dates[dates.length-1];
-let state={base:'sep',from:'2026-09-01',to:lastDate,cat:'all',sub:'all',status:'all',search:'',sort:'ordersQty',dir:-1,quick:'all',expanded:null};
+let state={base:'sep',from:'2026-09-01',to:lastDate,cat:'all',sub:'all',status:'all',cpo:'all',search:'',sort:'ordersQty',dir:-1,quick:'all',expanded:null};
 
 function agg(rows){
  const s={ordersQty:0,ordersRub:0,buyoutsQty:0,ads:0};
@@ -317,6 +328,42 @@ function matchesSkuSearch(row,query){return SKU_IDENTITY.matches(row,query)}
    Orders, advertising and demand are independent. Read immutable source rows.
    Calendar windows end on the last loaded report date, never on wall-clock today.
 */
+/* PAKKOM_CPO_LEVELS_V1: compare rubles per order, never DRR percentages. */
+const PAKKOM_CPO_LEVELS_V1={
+ verylow:{label:'Сильно ниже нормы',action:'Низкая стоимость заказа. Проверь объём заказов и показы: низкий CPO сам по себе не означает нехватку рекламы.'},
+ below:{label:'Ниже нормы',action:'Заказ дешевле ориентира. Сохраняй эффективные кампании; рост бюджета — после проверки спроса, остатков и маржи.'},
+ normal:{label:'Норма',action:'CPO рядом со стандартом. Поддерживай ставки и проверяй объём заказов.'},
+ control:{label:'Контроль',action:'CPO выше рабочего ориентира. Проверь ставки, фразы и конверсию; не расширяй бюджет до проверки.'},
+ maximum:{label:'У максимума',action:'До рекламного предела осталось не больше 10%. Снизь дорогие ставки и проверь маржу до следующего увеличения бюджета.'},
+ above:{label:'Выше максимума',action:'Сегодня: CPO превысил рекламный предел. Снизь ставки и ограничь неэффективные кампании; проверь результат после нового дня.'},
+ critical:{label:'Критично',action:'Сегодня: CPO более чем на 20% выше max. Приостанови неэффективные кампании после проверки расходов и заказов по ним; пересчитай допустимые ставки.'},
+ noorders:{label:'Расход без заказов',action:'Сегодня: есть рекламный расход, но нет заказов. Проверь активность карточки и учёт заказов; ограничь кампании, которые тратят без результата.'},
+ none:{label:'Без рекламы',action:'Рекламного расхода нет. Оцени спрос и остатки перед запуском.'},
+ unknown:{label:'Нет данных',action:'Не хватает данных или положительного норматива CPO. Проверь стандарт и max перед решением о рекламе.'}
+};
+function pakkomCpoLevelV1(s){
+ const finite=v=>typeof v==='number'&&Number.isFinite(v),positive=v=>finite(v)&&v>0;
+ const result=code=>({code,...PAKKOM_CPO_LEVELS_V1[code]});
+ if(!finite(s.ads)||s.ads<0||!finite(s.ordersQty)||s.ordersQty<0)return result('unknown');
+ if(s.ads===0)return result('none');
+ if(s.ordersQty===0)return result('noorders');
+ const cpo=s.ads/s.ordersQty,max=s.cpoMax,std=s.cpoStd,eps=1e-9;
+ // Max wins even when the catalog standard is higher. Never show a loss-risk band as normal.
+ if(positive(max)){
+  if(cpo>max*1.20+eps)return result('critical');
+  if(cpo>max+eps)return result('above');
+  if(cpo>=max*.90-eps)return result('maximum');
+ }
+ if(!positive(std)||!positive(max))return result('unknown');
+ if(cpo<std*.70-eps)return result('verylow');
+ if(cpo<std*.90-eps)return result('below');
+ if(cpo<=std*1.10+eps)return result('normal');
+ return result('control');
+}
+const pakkomCpoUrgentV1=code=>['above','critical','noorders'].includes(code);
+const pakkomCpoWatchV1=code=>['control','maximum'].includes(code);
+const pakkomCpoSafeV1=code=>['verylow','below','normal','none'].includes(code);
+
 function createPakkomSignalsV11(rows, keyOf) {
  'use strict';
  const DAY=86400000,day=s=>Date.parse(s+'T00:00:00Z'),iso=t=>new Date(t).toISOString().slice(0,10);
@@ -359,12 +406,12 @@ function createPakkomSignalsV11(rows, keyOf) {
   const cpoWorse=[c2,c7].some((c,i)=>c.valid&&c.cur.ads>0&&c.prev.ads>0&&c.cur.ordersQty>=(i?14:6)&&c.prev.ordersQty>=(i?14:6)&&c.dCpo>=.25);
   const lastRate=field=>[...source].reverse().find(r=>Number.isFinite(r[field]))?.[field]??null;
   const cpoStd=lastRate('cpoStd'),cpoMax=lastRate('cpoMax');
-  let cpoCode='unknown';
-  if(c7.cur.complete){if(c7.cur.ads===0)cpoCode='none';else if(c7.cur.ordersQty===0)cpoCode='critical';else if(cpoMax!==null&&c7.cur.cpo>cpoMax)cpoCode='critical';else if(cpoStd!==null)cpoCode=c7.cur.cpo>cpoStd?'control':'normal'}
+  const cpoLevel=c7.cur.complete?pakkomCpoLevelV1({...c7.cur,cpoStd,cpoMax}):{code:'unknown',...PAKKOM_CPO_LEVELS_V1.unknown};
+  const cpoCode=cpoLevel.code;
   const demandFall=urgentFall||systemFall||sustainedFall||longFall||stopped||inactive;
   const comparisons=[sustainedFall?[c5.dO,(expected5-cur5.ordersQty)*7/5]:null,systemFall?[c7.dO,c7.prev.ordersQty-c7.cur.ordersQty]:null,longFall?[long.dO,baselineWeek-c7.cur.ordersQty]:null,urgentFall?[c2.dO,(c2.prev.ordersQty-c2.cur.ordersQty)*7/2]:null].filter(Boolean);
   const lostPace=Math.max(0,...comparisons.map(c=>c[1]));
-  let priority=criticalFall||adsNoOrders||cpoCode==='critical'?1:demandFall||cpoCode==='control'||cpoWorse?2:strongGrowth||systemGrowth?3:4;
+  let priority=criticalFall||adsNoOrders||pakkomCpoUrgentV1(cpoCode)?1:demandFall||pakkomCpoWatchV1(cpoCode)||cpoWorse?2:strongGrowth||systemGrowth?3:4;
   const labels=[];
   if(stopped)labels.push('Нет заказов 3 дня');
   if(inactive&&!stopped)labels.push('Нет заказов 7 дней');
@@ -374,8 +421,7 @@ function createPakkomSignalsV11(rows, keyOf) {
   if(systemFall)labels.push('Падение за неделю');
   if(urgentFall)labels.push('Падение за 2 дня');
   if(adsNoOrders)labels.push('Реклама без заказов 3 дня');
-  if(cpoCode==='critical')labels.push(c7.cur.ordersQty===0?'Расход рекламы без заказов':'CPO выше максимума');
-  else if(cpoCode==='control')labels.push('CPO выше стандарта');
+  if(pakkomCpoUrgentV1(cpoCode)||pakkomCpoWatchV1(cpoCode))labels.push(({critical:'CPO критично выше max',above:'CPO выше максимума',maximum:'CPO у максимума',noorders:'Расход рекламы без заказов',control:'CPO выше стандарта'})[cpoCode]);
   if(cpoWorse)labels.push('CPO ухудшился');
   if(strongGrowth)labels.push(demandFall?'Отскок за 2 дня':'Рост за 2 дня');
   if(systemGrowth)labels.push(demandFall?'Отскок за неделю':'Рост за неделю');
@@ -385,22 +431,23 @@ function createPakkomSignalsV11(rows, keyOf) {
    actions.push('Сегодня: проверить доступный остаток по складам и срок доставки карточки.');
    if(c5.valid&&c5.dAds<=-.3)actions.push('Проверить снижение расхода рекламы: активность кампаний, бюджет, показы и позиции.');
    else actions.push('Сопоставить показы, переходы и конверсию в заказ; проверить цену и участие в акциях.');
-   actions.push(cpoCode==='critical'||adsNoOrders?'Ограничить кампании с дорогим заказом после проверки; проверить результат на следующий день.':'Сохранить рабочие кампании в пределах норматива CPO; после проверки причин контролировать заказы ежедневно.');
-  }else if(adsNoOrders||cpoCode==='critical'){
+   actions.push(pakkomCpoUrgentV1(cpoCode)||adsNoOrders?'Ограничить кампании с дорогим заказом после проверки; проверить результат на следующий день.':'Сохранить рабочие кампании в пределах норматива CPO; после проверки причин контролировать заказы ежедневно.');
+  }else if(adsNoOrders||pakkomCpoUrgentV1(cpoCode)){
    actions.push('Сегодня: проверить кампании с расходом и без заказов, наличие товара и доступность карточки.');
    actions.push('Сопоставить расходы и заказы по кампаниям; ограничить неэффективные ставки, затем проверить конверсию.');
-  }else if(cpoCode==='control'||cpoWorse){
+  }else if(pakkomCpoWatchV1(cpoCode)||cpoWorse){
    actions.push('В течение 1–2 дней: проверить рост ставок, поисковые фразы и конверсию; бюджет расширять после возврата CPO в норматив.');
   }else if(strongGrowth||systemGrowth){
    actions.push('Проверить запас по складам на текущий темп и срок следующей поставки.');
-   actions.push(cpoCode==='normal'?'После проверки остатков и маржи увеличить бюджет небольшим шагом и сравнить CPO и заказы.':'Сначала подтвердить остатки и экономику, затем решить вопрос об увеличении рекламы.');
+   actions.push(pakkomCpoSafeV1(cpoCode)?'После проверки остатков и маржи увеличить бюджет небольшим шагом и сравнить CPO и заказы.':'Сначала подтвердить остатки и экономику, затем решить вопрос об увеличении рекламы.');
   }else actions.push('Плановый контроль заказов, остатков и CPO; следующая проверка после загрузки нового дня.');
+  if(pakkomCpoUrgentV1(cpoCode))actions.unshift(cpoLevel.action);else actions.push(cpoLevel.action);
   const result={key,asOf:last,priority,labels,actions,c2,c7,c5,long,cur3,cpoCode,cpoStd,cpoMax,cpoWorse,urgentFall,systemFall,sustainedFall,longFall,stopped,inactive,adsNoOrders,criticalFall,demandFall,strongGrowth,systemGrowth,lostPace,d2:c2.dO,d7:c7.dO,dcpo:c2.dCpo,complete:c7.cur.complete};
   cache.set(key,result);return result;
  }
  return {evaluate,keys:[...registry.keys()],asOf:last,dates};
 }
-if(typeof module!=='undefined'&&module.exports)module.exports={createPakkomSignalsV11};
+if(typeof module!=='undefined'&&module.exports)module.exports={createPakkomSignalsV11,pakkomCpoLevelV1,PAKKOM_CPO_LEVELS_V1};
 /* PAKKOM_SIGNALS_V11_END */
 
 
@@ -426,9 +473,9 @@ function historicalStatusV11(g){
  return {status,label}
 }
 function signal(g){return signalEngineV11.evaluate(g.key)}
-function statusBase(g){const s=signal(g),old=historicalStatusV11(g);if(s.priority===1)return {status:'urgent',label:s.criticalFall?'Критическое падение':'Срочно'};if(s.demandFall||s.cpoWorse||s.cpoCode==='control')return {status:'control',label:s.demandFall?'Падение / нет заказов':'Контроль CPO'};if(old.status==='scale')return s.c7.cur.ordersQty>=14&&['normal','none'].includes(s.cpoCode)?{status:'scale',label:'Кандидат на рост'}:{status:'low',label:'Мало свежих заказов'};return old}
+function statusBase(g){const s=signal(g),old=historicalStatusV11(g);if(s.priority===1)return {status:'urgent',label:s.criticalFall?'Критическое падение':'Срочно'};if(s.demandFall||s.cpoWorse||pakkomCpoWatchV1(s.cpoCode))return {status:'control',label:s.demandFall?'Падение / нет заказов':'Контроль CPO'};if(old.status==='scale')return s.c7.cur.ordersQty>=14&&pakkomCpoSafeV1(s.cpoCode)?{status:'scale',label:'Кандидат на рост'}:{status:'low',label:'Мало свежих заказов'};return old}
 function pass(g){
- const st=statusBase(g),s=signal(g);if(state.status!=='all'&&st.status!==state.status)return false;
+ const st=statusBase(g),s=signal(g);if(state.cpo!=='all'&&pakkomCpoLevelV1(g.m).code!==state.cpo)return false;if(state.status!=='all'&&st.status!==state.status)return false;
  if(!signalMatchesV11(s,state.quick))return false;if(state.quick==='urgentfall'&&!s.urgentFall)return false;if(state.quick==='systemfall'&&!s.systemFall)return false;if(state.quick==='stronggrowth'&&!s.strongGrowth)return false;if(state.quick==='systemgrowth'&&!s.systemGrowth)return false;if(state.quick==='cpoworse'&&!s.cpoWorse)return false;if(state.quick==='urgent'&&st.status!=='urgent')return false;if(state.quick==='scale'&&st.status!=='scale')return false;return true
 }
 function getGroups(){return groups(baseRows()).filter(pass).sort((a,b)=>{const va=sortValue(a),vb=sortValue(b);return (n(va)-n(vb))*state.dir})}
@@ -437,7 +484,7 @@ function pillBase(st){return `<span class="pill ${st.status}">${st.label}</span>
 function sigBadge(s){return signalBadgeV11(s)}
 function kpi(l,v,d,c=''){return `<div class="kpi"><div class="l">${l}</div><div class="v ${c}">${v}</div><div class="d">${d||''}</div></div>`}
 function renderKpis(){const gs=getGroups(),m=agg(gs.flatMap(g=>g.rows)),uf=gs.filter(g=>signal(g).urgentFall).length,sf=gs.filter(g=>signal(g).systemFall).length,sg=gs.filter(g=>signal(g).strongGrowth).length,syg=gs.filter(g=>signal(g).systemGrowth).length;$('kpis').innerHTML=[kpi('SKU в периоде',num(gs.length),sdV11(state.from)+' — '+sdV11(state.to)),kpi('Заказы с комиссией WB',money(m.ordersRub),'оценка при комиссии WB 30%'),kpi('Заказано, шт.',num(m.ordersQty),''),kpi('Средние заказы / день',num(m.avgOrdersDay),'базовый период'),kpi('Выкуп',pct(m.buyout),num(m.buyoutsQty)+' шт.'),kpi('CPO',money(m.cpo),'базовый период'),kpi('ROI',pct(m.roi),'базовый период'),kpi('Срочное падение',num(uf)+' SKU','последние 2 дня','bad'),kpi('Систематическое падение',num(sf)+' SKU','последние 7 дней','warn'),kpi('Сильный рост',num(sg)+' SKU','последние 2 дня','good'),kpi('Систематический рост',num(syg)+' SKU','последние 7 дней','cyan')].join('')}
-function setQuick(q){state.status='all';$('fStatus').value='all';state.quick=q;state.expanded=null;document.querySelectorAll('.quick').forEach(x=>x.classList.toggle('on',x.dataset.q===q));renderAll()}
+function setQuick(q){state.cpo='all';$('fCpo').value='all';state.status='all';$('fStatus').value='all';state.quick=q;state.expanded=null;document.querySelectorAll('.quick').forEach(x=>x.classList.toggle('on',x.dataset.q===q));renderAll()}
 function renderQueues(){const all=groups(DATA.daily.filter(filtersOk)),defs=Object.entries(signalNamesV11);$('queues').innerHTML=defs.map(([q,label])=>{const count=all.filter(g=>signalMatchesV11(signal(g),q)).length;return `<button class="q ${state.quick===q?'on':''}" data-q="${q}"><b>${label}</b><span>${count} SKU</span></button>`}).join('');document.querySelectorAll('.q').forEach(x=>x.onclick=()=>setQuick(x.dataset.q))}
 const COLS=[['status','Статус'],['signal','Сигналы и риски'],['subcategory','Подкатегория'],['sku','SKU'],['ordersRub','Заказы с комиссией WB, ₽'],['ordersQty','Заказы шт.'],['avgOrdersDay','Заказы в день'],['buyoutsQty','Выкуплено шт.'],['buyout','Выкуп %'],['ads','Реклама'],['cpo','CPO'],['roi','ROI'],['profitPerBuyout','ЧП / 1 выкуп'],['urgentDelta','Изм. заказов 2д'],['systemDelta','Изм. заказов 7д']];
 const sortable=new Set([
@@ -450,13 +497,13 @@ function head(c){
  return `<th class="${can?'sortable':''}" data-k="${c[0]}" title="${can?'Нажмите для сортировки: больше/меньше':''}">${c[1]}${ar}</th>`
 }
 function actionText(g){return signalActionV11(g)}
-function renderTable(){const gs=getGroups();let h='<tr>'+COLS.map(head).join('')+'</tr>';gs.forEach(g=>{const m=g.m,st=statusBase(g),s=signal(g);h+=`<tr class="skurow" data-k="${esc(g.key)}"><td>${pillBase(st)}</td><td class="signal-column-v11">${primarySignalBadgeV15(s)}</td><td>${esc(g.subcategory)}</td><td class="sku">${esc(g.sku)}</td><td class="num">${money(m.ordersRub)}</td><td class="num">${num(m.ordersQty)}</td><td class="num">${num(m.avgOrdersDay)}</td><td class="num">${num(m.buyoutsQty)}</td><td class="num">${pct(m.buyout)}</td><td class="num">${money(m.ads)}</td><td class="num">${money(m.cpo)}</td><td class="num">${pct(m.roi)}</td><td class="num">${money(m.profitPerBuyout)}</td><td class="num ${Number.isFinite(s.c2.dO)?(s.c2.dO<0?'bad':'good'):''}">${pct(s.c2.dO)}</td><td class="num ${Number.isFinite(s.c7.dO)?(s.c7.dO<0?'bad':'good'):''}">${pct(s.c7.dO)}</td></tr>`;if(state.expanded===g.key)h+=detail(g,s)});if(!gs.length)h+=`<tr><td colspan="${COLS.length}" style="text-align:center;color:var(--mut);padding:18px">Нет SKU по выбранному сигналу</td></tr>`;$('skuTable').innerHTML=h;document.querySelectorAll('.skurow').forEach(tr=>tr.onclick=()=>{state.expanded=state.expanded===tr.dataset.k?null:tr.dataset.k;renderTable()});document.querySelectorAll('th.sortable').forEach(th=>th.onclick=()=>{
+function renderTable(){const gs=getGroups();let h='<tr>'+COLS.map(head).join('')+'</tr>';gs.forEach(g=>{const m=g.m,st=statusBase(g),s=signal(g);h+=`<tr class="skurow" data-k="${esc(g.key)}"><td>${pillBase(st)}</td><td class="signal-column-v11">${primarySignalBadgeV15(s)}</td><td>${esc(g.subcategory)}</td><td class="sku">${esc(g.sku)}</td><td class="num">${money(m.ordersRub)}</td><td class="num">${num(m.ordersQty)}</td><td class="num">${num(m.avgOrdersDay)}</td><td class="num">${num(m.buyoutsQty)}</td><td class="num">${pct(m.buyout)}</td><td class="num">${money(m.ads)}</td><td class="num" title="${esc(pakkomCpoLevelV1(m).label)}"><span class="cpo-dot-v1 cpo-${pakkomCpoLevelV1(m).code}"></span>${money(m.cpo)}</td><td class="num">${pct(m.roi)}</td><td class="num">${money(m.profitPerBuyout)}</td><td class="num ${Number.isFinite(s.c2.dO)?(s.c2.dO<0?'bad':'good'):''}">${pct(s.c2.dO)}</td><td class="num ${Number.isFinite(s.c7.dO)?(s.c7.dO<0?'bad':'good'):''}">${pct(s.c7.dO)}</td></tr>`;if(state.expanded===g.key)h+=detail(g,s)});if(!gs.length)h+=`<tr><td colspan="${COLS.length}" style="text-align:center;color:var(--mut);padding:18px">Нет SKU по выбранному сигналу</td></tr>`;$('skuTable').innerHTML=h;document.querySelectorAll('.skurow').forEach(tr=>tr.onclick=()=>{state.expanded=state.expanded===tr.dataset.k?null:tr.dataset.k;renderTable()});document.querySelectorAll('th.sortable').forEach(th=>th.onclick=()=>{
  const k=th.dataset.k;
  if(state.sort===k) state.dir*=-1;
  else { state.sort=k; state.dir=-1; }
  renderTable();
 })}
-function detail(g,sig){const rows=DATA.daily.filter(r=>rowKey(r)===g.key&&r.iso>=state.from&&r.iso<=state.to).sort((a,b)=>b.iso.localeCompare(a.iso));let d='<table><tr><th>Дата</th><th>Заказы с комиссией WB, ₽</th><th>Заказы</th><th>Выкуп</th><th>Реклама</th><th>CPO</th><th>ROI</th><th>ЧП / 1 выкуп</th></tr>';rows.forEach(r=>d+=`<tr><td>${r.date}</td><td class="num">${money(r.ordersRub)}</td><td class="num">${num(r.ordersQty)}</td><td class="num">${num(r.buyoutsQty)}</td><td class="num">${money(r.ads)}</td><td class="num">${money(r.cpo)}</td><td class="num">${pct(r.roi)}</td><td class="num">${money(r.profitPerBuyout)}</td></tr>`);d+='</table>';return `<tr class="detailrow"><td colspan="${COLS.length}"><div class="detail">${signalEvidenceV11(g)}<div class="detailtop"><div class="box"><h3>Динамика за базовый период</h3><div class="scroll" style="max-height:340px">${d}</div></div><div class="box"><h3>Сигналы</h3><div class="summary"><div class="sum"><div class="sl">Δ последние 2 дня</div><div class="sv">${pct(sig.c2.dO)}</div></div><div class="sum"><div class="sl">Предыдущие 2 дня</div><div class="sv">${num(sig.c2.prev.ordersQty)} заказов</div></div><div class="sum"><div class="sl">Δ последние 7 дней</div><div class="sv">${pct(sig.c7.dO)}</div></div><div class="sum"><div class="sl">Предыдущие 7 дней</div><div class="sv">${num(sig.c7.prev.ordersQty)} заказов</div></div><div class="sum"><div class="sl">Δ CPO 2 дня</div><div class="sv">${pct(sig.c2.dCpo)}</div></div><div class="sum"><div class="sl">Рекомендация</div><div class="sv">${actionText(g)}</div></div></div></div></div></div></td></tr>`}
+function detail(g,sig){const rows=DATA.daily.filter(r=>rowKey(r)===g.key&&r.iso>=state.from&&r.iso<=state.to).sort((a,b)=>b.iso.localeCompare(a.iso));let d='<table><tr><th>Дата</th><th>Заказы с комиссией WB, ₽</th><th>Заказы</th><th>Выкуп</th><th>Реклама</th><th>CPO</th><th>Статус рекламы</th><th>ROI</th><th>ЧП / 1 выкуп</th></tr>';rows.forEach(r=>d+=`<tr><td>${r.date}</td><td class="num">${money(r.ordersRub)}</td><td class="num">${num(r.ordersQty)}</td><td class="num">${num(r.buyoutsQty)}</td><td class="num">${money(r.ads)}</td><td class="num">${money(r.cpo)}</td><td>${cpoPillV1(pakkomCpoLevelV1(r))}</td><td class="num">${pct(r.roi)}</td><td class="num">${money(r.profitPerBuyout)}</td></tr>`);d+='</table>';return `<tr class="detailrow"><td colspan="${COLS.length}"><div class="detail">${signalEvidenceV11(g)}<div class="detailtop"><div class="box"><h3>Динамика за базовый период</h3><div class="scroll" style="max-height:340px">${d}</div></div><div class="box"><h3>Сигналы</h3><div class="note">Реклама за выбранные даты: ${cpoPillV1(pakkomCpoLevelV1(g.m))}<p>${cpoExplanationV1(g.m)}</p></div><div class="summary"><div class="sum"><div class="sl">Δ последние 2 дня</div><div class="sv">${pct(sig.c2.dO)}</div></div><div class="sum"><div class="sl">Предыдущие 2 дня</div><div class="sv">${num(sig.c2.prev.ordersQty)} заказов</div></div><div class="sum"><div class="sl">Δ последние 7 дней</div><div class="sv">${pct(sig.c7.dO)}</div></div><div class="sum"><div class="sl">Предыдущие 7 дней</div><div class="sv">${num(sig.c7.prev.ordersQty)} заказов</div></div><div class="sum"><div class="sl">Δ CPO 2 дня</div><div class="sv">${pct(sig.c2.dCpo)}</div></div><div class="sum"><div class="sl">Рекомендация</div><div class="sv">${actionText(g)}</div></div></div></div></div></div></td></tr>`}
 function fill(el,vals,label){el.innerHTML=`<option value="all">${label}</option>`+vals.map(v=>`<option>${esc(v)}</option>`).join('')}
 function updateSubs(){const vals=[...new Set(DATA.daily.filter(r=>state.cat==='all'||r.category===state.cat).map(r=>r.subcategory))].sort((a,b)=>a.localeCompare(b,'ru'));fill($('fSub'),vals,'Все подкатегории');if(state.sub!=='all'&&!vals.includes(state.sub))state.sub='all';$('fSub').value=state.sub}
 function setBase(){return pickRangePresetV17(state.base,false)}
@@ -465,9 +512,9 @@ function resetQuick(){state.quick='all';document.querySelectorAll('.quick').forE
 function init(){
  $('through').textContent=DATA.through;initRangeV17('all');
  fill($('fCat'),[...new Set(DATA.daily.map(r=>r.category))].sort((a,b)=>a.localeCompare(b,'ru')),'Все категории');updateSubs();
- $('fCat').onchange=e=>{state.cat=e.target.value;state.sub='all';updateSubs();resetQuick();renderAll()};$('fSub').onchange=e=>{state.sub=e.target.value;resetQuick();renderAll()};$('fStatus').onchange=e=>{state.status=e.target.value;resetQuick();renderAll()};$('fSearch').oninput=e=>{state.search=e.target.value.trim();renderAll()};
+ $('fCat').onchange=e=>{state.cat=e.target.value;state.sub='all';updateSubs();resetQuick();renderAll()};$('fSub').onchange=e=>{state.sub=e.target.value;resetQuick();renderAll()};$('fCpo').onchange=e=>{state.cpo=e.target.value;state.status='all';$('fStatus').value='all';state.expanded=null;resetQuick();renderAll()};$('fStatus').onchange=e=>{state.status=e.target.value;resetQuick();renderAll()};$('fSearch').oninput=e=>{state.search=e.target.value.trim();renderAll()};
  document.querySelectorAll('.quick').forEach(b=>b.onclick=()=>setQuick(b.dataset.q));
- $('reset').onclick=()=>{state={base:'sep',from:'2026-09-01',to:lastDate,cat:'all',sub:'all',status:'all',search:'',sort:'ordersQty',dir:-1,quick:'all',expanded:null};initRangeV17('all');$('fCat').value='all';$('fStatus').value='all';$('fSearch').value='';updateSubs();resetQuick();renderAll()};
+ $('reset').onclick=()=>{state={base:'sep',from:'2026-09-01',to:lastDate,cat:'all',sub:'all',status:'all',cpo:'all',search:'',sort:'ordersQty',dir:-1,quick:'all',expanded:null};initRangeV17('all');$('fCat').value='all';$('fStatus').value='all';$('fSearch').value='';$('fCpo').value='all';updateSubs();resetQuick();renderAll()};
  renderAll()
 }
 /* PAKKOM_DATE_RANGE_V17: one inclusive range for all financial views. */
@@ -528,7 +575,7 @@ const signalNamesV11={criticalfall:'Критическое падение',susta
 const decimalV11=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1});
 const sdV11=v=>v?String(v).split('-').reverse().join('.'):'—';
 const rangeV11=s=>sdV11(s.from)+' — '+sdV11(s.to);
-const cpoNamesV11={normal:'в норме',control:'выше стандарта',critical:'критично',none:'без рекламы',unknown:'нет норматива / данных'};
+const cpoNamesV11=Object.fromEntries(Object.entries(PAKKOM_CPO_LEVELS_V1).map(([k,v])=>[k,v.label]));
 let allPrioritiesV11=false;
 const prioritiesStorageKeyV11='pakkom-priorities-expanded-v11:'+SIGNAL_SITE_MODE_V11;
 let prioritiesExpandedV11=false;
@@ -544,13 +591,13 @@ function syncPrioritiesToggleV11(){
   syncPrioritiesToggleV11();
  };
 }
-function signalMatchesV11(s,q){return q==='cporisk'?['control','critical'].includes(s.cpoCode):signalFiltersV11[q]?s[signalFiltersV11[q]]:true}
+function signalMatchesV11(s,q){return q==='cporisk'?(pakkomCpoWatchV1(s.cpoCode)||pakkomCpoUrgentV1(s.cpoCode)):signalFiltersV11[q]?s[signalFiltersV11[q]]:true}
 function signalBadgeV11(s){
  return s.labels.map((x,i)=>`<span class="signal signal-pill ${s.priority===1?'sig-urgent':s.priority===2?'sig-system':s.priority===3?'sig-growth':'sig-none'}">${esc(x)}</span>`).join(' ');
 }
 /* PAKKOM_PRIMARY_SIGNAL_V15: presentation only; all engine flags remain filterable. */
 function primarySignalBadgeV15(s){
- const rank=['Реклама без заказов 3 дня','Нет заказов 3 дня','Критическое падение заказов','Расход рекламы без заказов','CPO выше максимума','Нет заказов 7 дней','Устойчивое падение 5 дней','Длительное снижение','Падение за неделю','Падение за 2 дня','CPO выше стандарта','CPO ухудшился','Рост за 2 дня','Рост за неделю','Отскок за 2 дня','Отскок за неделю'];
+ const rank=['Реклама без заказов 3 дня','Нет заказов 3 дня','Критическое падение заказов','Расход рекламы без заказов','CPO критично выше max','CPO выше максимума','CPO у максимума','Нет заказов 7 дней','Устойчивое падение 5 дней','Длительное снижение','Падение за неделю','Падение за 2 дня','CPO выше стандарта','CPO ухудшился','Рост за 2 дня','Рост за неделю','Отскок за 2 дня','Отскок за неделю'];
  const label=rank.find(x=>s.labels.includes(x))||s.labels[0];
  return signalBadgeV11({...s,labels:label?[label]:[]});
 }
@@ -573,7 +620,7 @@ function signalEvidenceV11(g){
  <div><b>Последние 5 дней · ${rangeV11(c.cur)}</b><p>${five}</p><span>Сравнение с теми же днями недели: ${c.baselines.map(rangeV11).join('; ')}. Ниже 70% своего дневного уровня: ${c.belowDays} из 5 дней.</span></div>
  <div><b>Неделя к неделе</b><p>${week}</p><span>${rangeV11(s.c7.cur)} против ${rangeV11(s.c7.prev)}.</span></div>
  <div><b>Относительно прежнего уровня</b><p>${long}</p><span>Обычный уровень — медиана ${l.priorWeeks.length} предыдущих полных недель; единичный высокий день не является отдельной базой сравнения.</span></div>
- <div><b>Реклама за ${rangeV11(s.c7.cur)}</b><p>CPO: ${money(s.c7.cur.cpo)} · ${cpoNamesV11[s.cpoCode]}</p><span>Расход: ${money(s.c7.cur.ads)}. Стандарт: ${money(s.cpoStd)}; максимум: ${money(s.cpoMax)}.</span></div></div>
+ <div><b>Реклама за ${rangeV11(s.c7.cur)}</b><p>CPO: ${money(s.c7.cur.cpo)} · ${cpoNamesV11[s.cpoCode]}</p><span>Расход: ${money(s.c7.cur.ads)}. Стандарт: ${money(s.cpoStd)}; максимум: ${money(s.cpoMax)}.</span><p>${cpoExplanationV1({...s.c7.cur,cpoStd:s.cpoStd,cpoMax:s.cpoMax})}</p></div></div>
  <h3>Следующие действия</h3><ol>${s.actions.map(a=>'<li>'+esc(a)+'</li>').join('')}</ol><div class="hint">Остатки, сроки доставки, показы и конверсия в этих данных отсутствуют: перечислены проверки возможных причин, а не установленная причина падения.</div></div></details>`;
 }
 function priorityCandidatesV11(){
@@ -582,7 +629,7 @@ function priorityCandidatesV11(){
 }
 function openSignalSkuV11(key){
  if(SIGNAL_SITE_MODE_V11==='radar'){
-  state.status='all';$('fStatus').value='all';
+  state.status='all';$('fStatus').value='all';state.cpo='all';$('fCpo').value='all';
   if(!baseRows().some(r=>canonicalSkuKey(r)===key)){state.base='all';state.from=rangeFirstV17;state.to=rangeLastV17}
  }else{
   state.cpo='all';state.profit='all';$('fCpo').value='all';$('fProfit').value='all';
@@ -602,6 +649,18 @@ function renderPrioritiesV11(){
  if(all.length>12)target.innerHTML+=`<button id="allPrioritiesV11">${allPrioritiesV11?'Свернуть до 12':'Показать все '+all.length+' SKU с сигналами'}</button>`;
  document.querySelectorAll('[data-open-signal]').forEach(b=>b.onclick=()=>openSignalSkuV11(b.dataset.openSignal));
  if($('allPrioritiesV11'))$('allPrioritiesV11').onclick=()=>{allPrioritiesV11=!allPrioritiesV11;renderPrioritiesV11()};
+}
+
+function cpoPillV1(z){return `<span class="pill cpo-level-v1 cpo-${z.code}" title="${esc(z.label+' — '+z.action)}">${esc(z.label)}</span>`}
+function cpoExplanationV1(s){
+ const z=pakkomCpoLevelV1(s),cpo=s.ordersQty>0?s.ads/s.ordersQty:null;
+ let text=z.action;
+ if(Number.isFinite(cpo)&&Number.isFinite(s.cpoMax)&&s.cpoMax>0){
+  const diff=s.cpoMax-cpo;
+  text+=(diff>=0?' Запас до max: '+money(diff)+' на заказ ('+pct(diff/s.cpoMax)+').':' Превышение max: '+money(-diff)+' на заказ ('+pct(-diff/s.cpoMax)+').');
+ }
+ if(s.cpoMax>0&&s.cpoStd>s.cpoMax)text+=' В справочнике стандарт выше max: применяется более строгий предел max.';
+ return esc(text);
 }
 /* PAKKOM_SIGNALS_UI_V11_END */
 

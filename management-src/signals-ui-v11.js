@@ -5,7 +5,7 @@ const signalNamesV11={criticalfall:'Критическое падение',susta
 const decimalV11=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1});
 const sdV11=v=>v?String(v).split('-').reverse().join('.'):'—';
 const rangeV11=s=>sdV11(s.from)+' — '+sdV11(s.to);
-const cpoNamesV11={normal:'в норме',control:'выше стандарта',critical:'критично',none:'без рекламы',unknown:'нет норматива / данных'};
+const cpoNamesV11=Object.fromEntries(Object.entries(PAKKOM_CPO_LEVELS_V1).map(([k,v])=>[k,v.label]));
 let allPrioritiesV11=false;
 const prioritiesStorageKeyV11='pakkom-priorities-expanded-v11:'+SIGNAL_SITE_MODE_V11;
 let prioritiesExpandedV11=false;
@@ -21,13 +21,13 @@ function syncPrioritiesToggleV11(){
   syncPrioritiesToggleV11();
  };
 }
-function signalMatchesV11(s,q){return q==='cporisk'?['control','critical'].includes(s.cpoCode):signalFiltersV11[q]?s[signalFiltersV11[q]]:true}
+function signalMatchesV11(s,q){return q==='cporisk'?(pakkomCpoWatchV1(s.cpoCode)||pakkomCpoUrgentV1(s.cpoCode)):signalFiltersV11[q]?s[signalFiltersV11[q]]:true}
 function signalBadgeV11(s){
  return s.labels.map((x,i)=>`<span class="signal signal-pill ${s.priority===1?'sig-urgent':s.priority===2?'sig-system':s.priority===3?'sig-growth':'sig-none'}">${esc(x)}</span>`).join(' ');
 }
 /* PAKKOM_PRIMARY_SIGNAL_V15: presentation only; all engine flags remain filterable. */
 function primarySignalBadgeV15(s){
- const rank=['Реклама без заказов 3 дня','Нет заказов 3 дня','Критическое падение заказов','Расход рекламы без заказов','CPO выше максимума','Нет заказов 7 дней','Устойчивое падение 5 дней','Длительное снижение','Падение за неделю','Падение за 2 дня','CPO выше стандарта','CPO ухудшился','Рост за 2 дня','Рост за неделю','Отскок за 2 дня','Отскок за неделю'];
+ const rank=['Реклама без заказов 3 дня','Нет заказов 3 дня','Критическое падение заказов','Расход рекламы без заказов','CPO критично выше max','CPO выше максимума','CPO у максимума','Нет заказов 7 дней','Устойчивое падение 5 дней','Длительное снижение','Падение за неделю','Падение за 2 дня','CPO выше стандарта','CPO ухудшился','Рост за 2 дня','Рост за неделю','Отскок за 2 дня','Отскок за неделю'];
  const label=rank.find(x=>s.labels.includes(x))||s.labels[0];
  return signalBadgeV11({...s,labels:label?[label]:[]});
 }
@@ -50,7 +50,7 @@ function signalEvidenceV11(g){
  <div><b>Последние 5 дней · ${rangeV11(c.cur)}</b><p>${five}</p><span>Сравнение с теми же днями недели: ${c.baselines.map(rangeV11).join('; ')}. Ниже 70% своего дневного уровня: ${c.belowDays} из 5 дней.</span></div>
  <div><b>Неделя к неделе</b><p>${week}</p><span>${rangeV11(s.c7.cur)} против ${rangeV11(s.c7.prev)}.</span></div>
  <div><b>Относительно прежнего уровня</b><p>${long}</p><span>Обычный уровень — медиана ${l.priorWeeks.length} предыдущих полных недель; единичный высокий день не является отдельной базой сравнения.</span></div>
- <div><b>Реклама за ${rangeV11(s.c7.cur)}</b><p>CPO: ${money(s.c7.cur.cpo)} · ${cpoNamesV11[s.cpoCode]}</p><span>Расход: ${money(s.c7.cur.ads)}. Стандарт: ${money(s.cpoStd)}; максимум: ${money(s.cpoMax)}.</span></div></div>
+ <div><b>Реклама за ${rangeV11(s.c7.cur)}</b><p>CPO: ${money(s.c7.cur.cpo)} · ${cpoNamesV11[s.cpoCode]}</p><span>Расход: ${money(s.c7.cur.ads)}. Стандарт: ${money(s.cpoStd)}; максимум: ${money(s.cpoMax)}.</span><p>${cpoExplanationV1({...s.c7.cur,cpoStd:s.cpoStd,cpoMax:s.cpoMax})}</p></div></div>
  <h3>Следующие действия</h3><ol>${s.actions.map(a=>'<li>'+esc(a)+'</li>').join('')}</ol><div class="hint">Остатки, сроки доставки, показы и конверсия в этих данных отсутствуют: перечислены проверки возможных причин, а не установленная причина падения.</div></div></details>`;
 }
 function priorityCandidatesV11(){
@@ -59,7 +59,7 @@ function priorityCandidatesV11(){
 }
 function openSignalSkuV11(key){
  if(SIGNAL_SITE_MODE_V11==='radar'){
-  state.status='all';$('fStatus').value='all';
+  state.status='all';$('fStatus').value='all';state.cpo='all';$('fCpo').value='all';
   if(!baseRows().some(r=>canonicalSkuKey(r)===key)){state.base='all';state.from=rangeFirstV17;state.to=rangeLastV17}
  }else{
   state.cpo='all';state.profit='all';$('fCpo').value='all';$('fProfit').value='all';
@@ -79,5 +79,17 @@ function renderPrioritiesV11(){
  if(all.length>12)target.innerHTML+=`<button id="allPrioritiesV11">${allPrioritiesV11?'Свернуть до 12':'Показать все '+all.length+' SKU с сигналами'}</button>`;
  document.querySelectorAll('[data-open-signal]').forEach(b=>b.onclick=()=>openSignalSkuV11(b.dataset.openSignal));
  if($('allPrioritiesV11'))$('allPrioritiesV11').onclick=()=>{allPrioritiesV11=!allPrioritiesV11;renderPrioritiesV11()};
+}
+
+function cpoPillV1(z){return `<span class="pill cpo-level-v1 cpo-${z.code}" title="${esc(z.label+' — '+z.action)}">${esc(z.label)}</span>`}
+function cpoExplanationV1(s){
+ const z=pakkomCpoLevelV1(s),cpo=s.ordersQty>0?s.ads/s.ordersQty:null;
+ let text=z.action;
+ if(Number.isFinite(cpo)&&Number.isFinite(s.cpoMax)&&s.cpoMax>0){
+  const diff=s.cpoMax-cpo;
+  text+=(diff>=0?' Запас до max: '+money(diff)+' на заказ ('+pct(diff/s.cpoMax)+').':' Превышение max: '+money(-diff)+' на заказ ('+pct(-diff/s.cpoMax)+').');
+ }
+ if(s.cpoMax>0&&s.cpoStd>s.cpoMax)text+=' В справочнике стандарт выше max: применяется более строгий предел max.';
+ return esc(text);
 }
 /* PAKKOM_SIGNALS_UI_V11_END */

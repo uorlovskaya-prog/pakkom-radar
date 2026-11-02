@@ -25,7 +25,7 @@ for(const [file,mode] of [['index.html','radar'],['financial_updated.html','owne
   assert.notEqual(vm.runInContext('statusBase(getGroups()[0]).status',c),'scale');
  }else{
   vm.runInContext("state.cpo='control';state.profit='negative';selectManagementQuickV9('criticalfall');",c);assert.equal(vm.runInContext('state.cpo',c),'all');assert.equal(vm.runInContext('state.profit',c),'all');assert.equal(vm.runInContext('getGroups().length',c),1);
-  assert.equal(vm.runInContext("zone({ads:100,ordersQty:0,cpo:null,cpoStd:10,cpoMax:20}).code",c),'critical');
+  assert.equal(vm.runInContext("zone({ads:100,ordersQty:0,cpo:null,cpoStd:10,cpoMax:20}).code",c),'noorders');
  }
  vm.runInContext("openSignalSkuV11('"+riskKey+"')",c);assert(elements.get('skuTable').innerHTML.includes(vm.runInContext('DATA.through',c)));assert(elements.get('skuTable').innerHTML.includes('Следующие действия'));
  vm.runInContext("state.search='"+riskId+"';renderAll();",c);
@@ -111,6 +111,31 @@ for(const [file,mode] of [['index.html','radar'],['financial_updated.html','owne
  assert.equal(run("JSON.stringify(signalEngineV11.evaluate('"+riskKey+"'))"),signalBeforeRange);
  assert.equal(JSON.stringify(run('DATA')),initial);
  elements.get('reset').onclick();checkRange(mode==='owner'?'2026-09-01':first,last);
+
+ // New status dropdown partitions the same selected-date SKU set, in both dashboards.
+ const allKeys=run('getGroups().map(g=>g.key)'),selected=[];
+ for(const code of ['verylow','below','normal','control','maximum','above','critical','noorders','none','unknown']){
+  assert(html.includes('value="'+code+'"'),'Missing filter '+code);
+  elements.get('fCpo').onchange({target:{value:code}});
+  const keys=run('getGroups().map(g=>g.key)');selected.push(...keys);
+  assert(run('getGroups().every(g=>pakkomCpoLevelV1(g.m).code===state.cpo)'));
+  assert.equal(run('state.quick'),'all');
+ }
+ assert.deepEqual([...selected].sort(),[...allKeys].sort());
+ elements.get('fCpo').onchange({target:{value:'all'}});
+ const codes=['control','maximum','above','critical','noorders'];
+ for(const code of codes)assert(run('signalMatchesV11({cpoCode:'+JSON.stringify(code)+'},"cporisk")'));
+ for(const code of ['verylow','below','normal','none','unknown'])assert(!run('signalMatchesV11({cpoCode:'+JSON.stringify(code)+'},"cporisk")'));
+ if(mode==='owner'){
+  // Daily status must be recalculated from numbers, never stale spreadsheet label text.
+  const detail=run('detail(getGroups().find(g=>g.rows.some(r=>r.ads>0)))');
+  assert(detail.includes('cpo-level-v1'));assert(!detail.includes('В норме'));
+  assert(detail.includes('Реклама за выбранные даты:'));assert(detail.includes('ЧП после рекламы и НДС:'));
+ }
+ assert.equal(JSON.stringify(run('DATA')),initial);
+ assert(html.includes('<details class="cpo-legend-v1">'),'Legend defaults to collapsed');
+ assert(!elements.get('skuTable').innerHTML.includes('undefined'));
+
  output[mode]={initial_render:true,search:true,critical_filter:true,conflicting_filters_cleared:true,sku_detail:true,all_priorities:n,data_unchanged:true,one_primary_signal:true,hidden_signal_filter:true,attention_collapsed:true,date_range:{october:true,single_day:true,partial_week:true,preset_week:true,invalid_input_preserves_totals:true,month:true,last7:true,all_history:true,reset:true,independent_sums_match:true,priority_open_preserves_dates:true},orders_including_commission:true};
 }
 console.log(JSON.stringify(output));
