@@ -1,0 +1,83 @@
+name: Publish October warehouse dashboard
+on:
+  push:
+    branches: [main]
+    paths:
+      - sklad-src/october-2026-v3/release.json
+      - sklad-src/october-2026-v3/bundle-*.b64
+      - .github/workflows/warehouse-october-site.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: pakkom-warehouse-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'uorlovskaya-prog/pakkom-radar'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Verify release and publish October only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import base64, gzip, hashlib, json, re
+          root=Path('.')
+          src=root/'sklad-src'/'october-2026-v3'
+          rel=json.loads((src/'release.json').read_text(encoding='utf-8'))
+          enc=''.join(''.join((src/p).read_text(encoding='ascii').split()) for p in rel['parts'])
+          gz=base64.b64decode(enc, validate=True)
+          assert hashlib.sha256(gz).hexdigest()==rel['gzipSHA256'], 'gzip SHA mismatch'
+          html=gzip.decompress(gz)
+          assert hashlib.sha256(html).hexdigest()==rel['htmlSHA256'], 'HTML SHA mismatch'
+          text=html.decode('utf-8')
+          assert 'Октябрь 2026' in text
+          assert '88' in text and '344' in text
+          assert 'missingNormQty' in text
+          m=re.search(r'<script type="application/json" id="dashboardData">([\s\S]*?)</script>', text)
+          assert m, 'dashboardData missing'
+          data=json.loads(m.group(1))
+          assert data.get('totalQty')==88344
+          assert data.get('totalSec')==4892030
+          assert data.get('missingNormQty')==0
+          assert data.get('dayPersonCount')==229
+          # Archive the currently published September page/version before replacement.
+          out=root/'sklad'
+          arch=out/'2026-09'
+          arch.mkdir(parents=True, exist_ok=True)
+          if not (arch/'index.html').exists():
+              (arch/'index.html').write_bytes((out/'index.html').read_bytes())
+          if not (arch/'version.json').exists():
+              (arch/'version.json').write_bytes((out/'version.json').read_bytes())
+          (out/'index.html').write_bytes(html)
+          version={
+            'version':rel['version'],'periodFrom':'2026-10-01','periodTo':'2026-10-31',
+            'updated':'2026-11-03','rows':8768,'qty':88344,'seconds':4892030,
+            'dayPersonCount':229,'missingNormQty':0,'htmlSHA256':rel['htmlSHA256'],
+            'sourceSHA256':rel['sourceSHA256'],'masterSHA256':rel['masterSHA256']
+          }
+          (out/'version.json').write_text(json.dumps(version,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          print(json.dumps({'status':'PASS',**version},ensure_ascii=False))
+          PY
+          git add -- sklad/index.html sklad/version.json sklad/2026-09/index.html sklad/2026-09/version.json
+          python - <<'PY'
+          import subprocess
+          allowed={'sklad/index.html','sklad/version.json','sklad/2026-09/index.html','sklad/2026-09/version.json'}
+          files=set(subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines())
+          if not files.issubset(allowed):
+              raise RuntimeError('Unexpected staged path: '+repr(files-allowed))
+          PY
+          if git diff --cached --quiet; then
+            echo 'October release already published.'
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'Publish October warehouse dashboard and archive September'
+            git push origin HEAD:main
+          fi
