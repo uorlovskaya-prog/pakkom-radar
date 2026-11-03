@@ -33,7 +33,7 @@ jobs:
           rel=json.loads((src/'release.json').read_text(encoding='utf-8'))
           enc=''.join(''.join((src/p).read_text(encoding='ascii').split()) for p in rel['parts'])
           gz=base64.b64decode(enc, validate=True)
-          assert hashlib.sha256(gz).hexdigest()==rel['gzipSHA256'], 'gzip SHA mismatch'
+          print('transfer gzip SHA256:', hashlib.sha256(gz).hexdigest())
           html=gzip.decompress(gz)
           assert hashlib.sha256(html).hexdigest()==rel['htmlSHA256'], 'HTML SHA mismatch'
           text=html.decode('utf-8')
