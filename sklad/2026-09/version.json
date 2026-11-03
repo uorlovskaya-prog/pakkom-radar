@@ -1,0 +1,11 @@
+{
+  "version": "warehouse-2026-10-09-v1",
+  "periodFrom": "2026-09-14",
+  "periodTo": "2026-09-30",
+  "updated": "2026-10-09",
+  "rows": 3533,
+  "qty": 38150,
+  "seconds": 1990050,
+  "missingNormQty": 0,
+  "htmlSHA256": "c4cb47b05f7cb7215e2057efaee4c21568a78c140913b0de3de481080d8ee91f"
+}
