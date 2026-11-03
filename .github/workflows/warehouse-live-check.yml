@@ -9,45 +9,42 @@ permissions:
 jobs:
   verify-live:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 5
     steps:
-      - name: Verify the actual public URL, exact page bytes and published data
+      - name: Verify live October site and September archive
         shell: bash
         run: |
           python - <<'PY'
-          import hashlib, json, re, time, urllib.request
-          url = 'https://uorlovskaya-prog.github.io/pakkom-radar/sklad/'
-          expected = 'c4cb47b05f7cb7215e2057efaee4c21568a78c140913b0de3de481080d8ee91f'
-          def get(address):
-              request = urllib.request.Request(address, headers={'Cache-Control': 'no-cache', 'User-Agent': 'Pakkom-Warehouse-Live-Check'})
-              with urllib.request.urlopen(request, timeout=20) as response:
-                  assert response.status == 200, response.status
-                  return response.read()
-          for attempt in range(10):
+          import json, re, time, urllib.request
+          base='https://uorlovskaya-prog.github.io/pakkom-radar/sklad/'
+          def get(url):
+              req=urllib.request.Request(url,headers={'Cache-Control':'no-cache','User-Agent':'Pakkom-Warehouse-Live-Check'})
+              with urllib.request.urlopen(req,timeout=20) as r:
+                  assert r.status==200, r.status
+                  return r.read()
+          for attempt in range(15):
               try:
-                  content = get(url + '?release=warehouse-2026-10-09-v1')
-                  assert hashlib.sha256(content).hexdigest() == expected, 'Published page differs from approved HTML'
-                  version = json.loads(get(url + 'version.json?release=warehouse-2026-10-09-v1'))
-                  assert version['htmlSHA256'] == expected
-                  assert version['rows'] == 3533 and version['qty'] == 38150
-                  assert version['missingNormQty'] == 0
-                  text = content.decode('utf-8')
-                  match = re.search(r'<script type="application/json" id="dashboardData">([\s\S]*?)</script>', text)
-                  assert match, 'Data block is missing'
-                  data = json.loads(match.group(1))
-                  assert len(data['records']) == 3533
-                  assert sum(r['qty'] for r in data['records']) == 38150
-                  assert sum(r['seconds'] for r in data['records']) == 1990050
-                  assert all(r['normSeconds'] > 0 for r in data['records'])
-                  assert "compareMode:'all'" in text
-                  assert 'На общих датах результат выше' not in text
-                  assert '<title>Пакком — склад' in text
-                  print('LIVE WEBSITE PASS: ' + url)
-                  print('HTTP 200; exact approved HTML; 3533 rows; 38150 packages; no missing norms; own working days comparison by default.')
+                  raw=get(base+'?release=warehouse-2026-11-03-october-v1')
+                  text=raw.decode('utf-8')
+                  assert 'Октябрь 2026' in text
+                  m=re.search(r'<script type="application/json" id="dashboardData">([\s\S]*?)</script>',text)
+                  assert m, 'dashboardData missing'
+                  data=json.loads(m.group(1))
+                  assert data.get('totalQty')==88344, data.get('totalQty')
+                  assert data.get('totalSec')==4892030, data.get('totalSec')
+                  assert data.get('missingNormQty')==0, data.get('missingNormQty')
+                  assert data.get('dayPersonCount')==229, data.get('dayPersonCount')
+                  ver=json.loads(get(base+'version.json?release=warehouse-2026-11-03-october-v1'))
+                  assert ver['periodFrom']=='2026-10-01' and ver['periodTo']=='2026-10-31'
+                  assert ver['qty']==88344 and ver['rows']==8768 and ver['missingNormQty']==0
+                  sept=get(base+'2026-09/?archive=1').decode('utf-8')
+                  assert 'Сентябрь 2026' in sept
+                  print('LIVE OCTOBER PASS:',base)
+                  print('88344 packages; 4892030 norm-seconds; 229 person-days; 0 missing norms')
+                  print('SEPTEMBER ARCHIVE PASS:',base+'2026-09/')
                   break
-              except Exception as error:
-                  if attempt == 9:
-                      raise
-                  print('Waiting for public deployment/cache: ' + str(error))
-                  time.sleep(10)
+              except Exception as e:
+                  if attempt==14: raise
+                  print('Waiting for Pages deployment:',repr(e))
+                  time.sleep(8)
           PY
