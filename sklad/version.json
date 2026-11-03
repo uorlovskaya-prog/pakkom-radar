@@ -1,11 +1,14 @@
 {
-  "version": "warehouse-2026-10-09-v1",
-  "periodFrom": "2026-09-14",
-  "periodTo": "2026-09-30",
-  "updated": "2026-10-09",
-  "rows": 3533,
-  "qty": 38150,
-  "seconds": 1990050,
+  "version": "warehouse-2026-11-03-october-v1",
+  "periodFrom": "2026-10-01",
+  "periodTo": "2026-10-31",
+  "updated": "2026-11-03",
+  "rows": 8768,
+  "qty": 88344,
+  "seconds": 4892030,
+  "dayPersonCount": 229,
   "missingNormQty": 0,
-  "htmlSHA256": "c4cb47b05f7cb7215e2057efaee4c21568a78c140913b0de3de481080d8ee91f"
+  "htmlSHA256": "1c5078c8ad65d7c59b31d6fd964b5c4bc20a661bde4e4619e3262203eb876090",
+  "sourceSHA256": "334f8d64fa44802f1346d123c6d6ab4a7859e33eeda9eef9866ead8b4e895d41",
+  "masterSHA256": "74b1670096f0f69c376ec107c40366ce40c71c8aa1a7d2051f5a3ba795bb1649"
 }
