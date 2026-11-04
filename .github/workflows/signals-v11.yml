@@ -9,6 +9,11 @@ on:
       - management-src/signals-ui-v11.js
       - tests/management-signals-v11.cjs
       - tests/signals-ui-v11.cjs
+      - sku-identity-v4.js
+      - management-src/sku-identity-ng-v1.js
+      - management-src/access-loader-v10.js
+      - tests/sku-identity-ng-v1.cjs
+      - tests/fixtures/sku-identity-before-ng.js
       - .github/workflows/signals-v11.yml
 permissions:
   contents: read
@@ -25,6 +30,8 @@ jobs:
         run: node tests/management-signals-v11.cjs
       - name: Render, search, quick filters and SKU detail checks
         run: node tests/signals-ui-v11.cjs
+      - name: Cyrillic NG aliases, history and encrypted owner login
+        run: node tests/sku-identity-ng-v1.cjs
       - name: Check shared signal version and encrypted owner release
         run: |
           node <<'JS'

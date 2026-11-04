@@ -229,6 +229,7 @@ function agg(rows){
    Resolve identity across ALL loaded dates before filtering. A missing WB ID is
    not a new product. Exact normalized titles and explicit spelling aliases are
    linked to a unique known ID. Keep sizes, colours and pack quantities intact.
+   НГ is the approved Cyrillic New Year rename marker, not a new SKU.
    Never change source rows or financial amounts in this display/identity layer.
 */
 const APPROVED_SKU_IDS=Object.freeze({
@@ -255,8 +256,19 @@ function normalizeSkuSearch(value){
   .replace(/\s+/g,' ').trim();
 }
 function normalizeSkuName(value){
- const name=normalizeSkuSearch(value);
+ const name=normalizeSkuSearch(value).replace(/(^|\s)нг(?=\s|$)/g,' ').replace(/\s+/g,' ').trim();
  return SKU_NAME_ALIASES[name]||name;
+}
+function hasNewYearMarker(value){return /(^|\s)нг(?=\s|$)/.test(normalizeSkuSearch(value))}
+function isKnownNewYearName(value){
+ const name=normalizeSkuSearch(value);
+ return hasNewYearMarker(name)||/^(стаканы бум|тарелки|набор посуды)\s/.test(name)&&/(^|\s)(снегири|щелкунчик|щелк|шары)(?=\s|$)/.test(name);
+}
+function newYearDisplayName(value){
+ const name=String(value??'').trim();
+ if(hasNewYearMarker(name))return name.replace(/(^|\s)нг(?=\s|$)/gi,'$1НГ');
+ if(/^(стаканы бум|тарелки|набор посуды)\s/i.test(name))return name.replace(/^(стаканы бум|тарелки|набор посуды)\s+/i,'$1 НГ ');
+ return 'НГ '+name;
 }
 function sourceSkuName(row){
  const name=String(row.sku??'').trim(),key=String(row.skuKey??'').trim();
@@ -270,14 +282,21 @@ function explicitSkuId(row){
  return a||b;
 }
 function createSkuIdentity(rows){
- const byName=new Map(),info=new Map(),cache=new WeakMap();
+ const byName=new Map(),info=new Map(),cache=new WeakMap(),fallbackKeys=new Map();
  function add(name,id){
   if(!name||!id)return;
   if(!byName.has(name))byName.set(name,new Set());
   byName.get(name).add(id);
  }
  Object.entries(APPROVED_SKU_IDS).forEach(([name,id])=>add(normalizeSkuName(name),id));
- rows.forEach(row=>add(normalizeSkuName(sourceSkuName(row)),explicitSkuId(row)));
+ rows.forEach(row=>{
+  const source=sourceSkuName(row),name=normalizeSkuName(source);
+  add(name,explicitSkuId(row));
+  // Keep an existing name-only identity stable when its label gains НГ.
+  const original=normalizeSkuSearch(source),candidate={iso:String(row.iso||'9999-99-99'),key:'NAME:'+(SKU_NAME_ALIASES[original]||original)};
+  const previous=fallbackKeys.get(name);
+  if(name&&(!previous||candidate.iso<previous.iso||candidate.iso===previous.iso&&candidate.key<previous.key))fallbackKeys.set(name,candidate);
+ });
  function key(row){
   const hit=cache.get(row);
   if(hit&&hit.nmId===row.nmId&&hit.skuKey===row.skuKey&&hit.sku===row.sku)return hit.key;
@@ -289,28 +308,33 @@ function createSkuIdentity(rows){
    if(ids&&ids.size===1)id=ids.values().next().value;
   }
   if(!id&&!name)throw new Error('SKU has neither a product name nor WB ID');
-  const result=id?'NMID:'+id:'NAME:'+name;
+  const result=id?'NMID:'+id:(fallbackKeys.get(name)?.key||'NAME:'+name);
   cache.set(row,{nmId:row.nmId,skuKey:row.skuKey,sku:row.sku,key:result});
   return result;
  }
  rows.forEach(row=>{
   const k=key(row),name=sourceSkuName(row),iso=String(row.iso??'');
-  if(!info.has(k))info.set(k,{key:k,nmId:k.startsWith('NMID:')?k.slice(5):'',sku:name,iso,names:new Set()});
+  if(!info.has(k))info.set(k,{key:k,nmId:k.startsWith('NMID:')?k.slice(5):'',sku:name,iso,names:new Set(),isNewYear:false});
   const meta=info.get(k);
   if(name){meta.names.add(normalizeSkuSearch(name));meta.names.add(normalizeSkuName(name));}
+  if(isKnownNewYearName(name))meta.isNewYear=true;
   if(name&&iso>=meta.iso){meta.sku=name;meta.iso=iso;}
  });
- info.forEach(meta=>{meta.search=normalizeSkuSearch([...meta.names,meta.nmId,meta.key].join(' '));});
- let previousQuery=null,needle='';
+ info.forEach(meta=>{
+  if(meta.isNewYear){meta.sku=newYearDisplayName(meta.sku);meta.names.add(normalizeSkuSearch(meta.sku));meta.names.add(normalizeSkuName(meta.sku));}
+  meta.search=normalizeSkuSearch([...meta.names,meta.nmId,meta.key].join(' '));
+ });
+ let previousQuery=null,needle='',requiresNewYear=false;
  function matches(row,query){
   if(query!==previousQuery){
    const text=normalizeSkuSearch(query);
    needle=canonicalNmId(text)||normalizeSkuName(text);
+   requiresNewYear=hasNewYearMarker(text);
    previousQuery=query;
   }
   const meta=info.get(key(row));
   const haystack=meta?meta.search:normalizeSkuSearch(sourceSkuName(row)+' '+key(row));
-  return haystack.includes(needle);
+  return (!requiresNewYear||Boolean(meta&&meta.isNewYear))&&haystack.includes(needle);
  }
  function meta(row){
   const k=key(row),m=info.get(k);
