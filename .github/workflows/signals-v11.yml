@@ -14,6 +14,9 @@ on:
       - management-src/access-loader-v10.js
       - tests/sku-identity-ng-v1.cjs
       - tests/fixtures/sku-identity-before-ng.js
+      - management-src/ad-attribution-v1.js
+      - ad-campaign-map-v1.json
+      - tests/ad-attribution-v1.cjs
       - .github/workflows/signals-v11.yml
 permissions:
   contents: read
@@ -32,6 +35,8 @@ jobs:
         run: node tests/signals-ui-v11.cjs
       - name: Cyrillic NG aliases, history and encrypted owner login
         run: node tests/sku-identity-ng-v1.cjs
+      - name: Advertising attribution and financial reconciliation
+        run: node tests/ad-attribution-v1.cjs
       - name: Check shared signal version and encrypted owner release
         run: |
           node <<'JS'

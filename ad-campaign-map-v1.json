@@ -1,0 +1,26 @@
+{
+  "approvedOn": "04.11.2026",
+  "basis": "User instructed to use current campaign product names for all campaign history, regardless of previous campaign titles.",
+  "campaigns": [
+    {
+      "campaignId": 41370686,
+      "sku": "пакеты крафт 220х120х250 кр ручка 10 шт",
+      "nmId": "1906086906"
+    },
+    {
+      "campaignId": 41370711,
+      "sku": "пакеты крафт 220х120х250 кр ручка 25 шт",
+      "nmId": "1906114868"
+    },
+    {
+      "campaignId": 41370758,
+      "sku": "пакеты крафт 320х200х370 кр ручка 10 шт",
+      "nmId": "1906153466"
+    },
+    {
+      "campaignId": 41370739,
+      "sku": "пакеты крафт 320х200х370 кр ручка 25 шт",
+      "nmId": "1906140569"
+    }
+  ]
+}
