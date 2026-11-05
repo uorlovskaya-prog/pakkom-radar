@@ -49,7 +49,7 @@ for(const field of ['ordersQty','ordersRub','buyoutsQty','ads']){
 }
 run('state.search='+JSON.stringify(fullNew)+';renderAll();');assert.equal(run('getGroups().length'),1);
 assert.equal(run('getGroups()[0].rows.length'),current.length);
-run('openSignalSkuV11(getGroups()[0].key)');assert(rendered.elements.get('skuTable').innerHTML.includes('03.11.2026'));
+run('openSignalSkuV11(getGroups()[0].key)');assert(rendered.elements.get('skuTable').innerHTML.includes(data.through));
 const patchSource=read('management-src/sku-identity-ng-v1.js'),p={};vm.createContext(p);vm.runInContext(patchSource,p);
 const oldGuard=read('tests/fixtures/sku-identity-before-ng.js').trim();
 // The encrypted roundtrip uses public data, plus the owner's real sorting anchors.
@@ -84,5 +84,19 @@ assert(!owner.includes('"daily":'),'Owner financial data must remain encrypted')
  const {applyPakkomProfitPercentSortV1}=require('../management-src/profit-percent-sort-v1.js');
  assert.equal(el('board').srcdoc,applyPakkomProfitPercentSortV1(patched),'Real owner loader must apply identity and percentage sorting after decryption');
  assert.equal(el('password').value,'');assert.equal(el('gate').hidden,true);
+ // A later report reuses the same account/private key and preserves the base UI.
+ const nextIso=new Date(Date.parse(data.daily.map(r=>r.iso).sort().at(-1)+'T00:00:00Z')+86400000).toISOString().slice(0,10),nextDate=nextIso.split('-').reverse().join('.');
+ const update={schema:'pakkom-report-data-update-v1',id:'synthetic-next-report',expectedThrough:data.through,through:nextDate,replacements:[],
+  insertions:[{iso:nextIso,date:nextDate,sku:'Synthetic update',nmId:'999999999',ordersQty:2,ordersRub:100,ads:10,profit:55}],
+  dailyChecks:[{iso:nextIso,rows:1,sums:{ordersQty:2,ordersRub:100,ads:10,profit:55}}],weeks:data.weeks,business:{profit:1234,ads:999},controlDaily:{}};
+ const patchText=JSON.stringify(update),patchRaw=random(32),patchIv=random(12),patchAes=await sub.importKey('raw',patchRaw,'AES-GCM',false,['encrypt']);
+ const patchCipher=await sub.encrypt({name:'AES-GCM',iv:patchIv,additionalData:enc.encode('pakkom-management-dashboard-v1')},patchAes,gzipSync(patchText));
+ const nextRelease={...release,through:nextDate,payloadFormat:'pakkom-management-data-update-v1',basePayload:release.payload,payload:{iv:b64(patchIv),wrappedKey:b64(await sub.encrypt({name:'RSA-OAEP'},pair.publicKey,patchRaw)),ciphertext:b64(patchCipher),sha256:Buffer.from(await sub.digest('SHA-256',enc.encode(patchText))).toString('hex')}};
+ const {applyPakkomReportDataUpdateV1}=require('../management-src/report-data-update-v1.js');
+ context.fetch=async()=>({ok:true,text:async()=>'<script id="pakkom-sealed-release" type="application/json">'+JSON.stringify(nextRelease)+'</script>'});
+ await el('refresh').onclick();assert.equal(el('board').srcdoc,applyPakkomReportDataUpdateV1(applyPakkomProfitPercentSortV1(patched),update));
+ assert.equal(el('active-date').textContent,'Данные по '+nextDate);assert.equal(el('status').textContent,'Обновлено');
+ await el('refresh').onclick();assert.equal(el('status').textContent,'У вас актуальная версия');
+ const stable=el('board').srcdoc;nextRelease.payload.sha256='0'.repeat(64);await el('refresh').onclick();assert.equal(el('board').srcdoc,stable);assert.equal(el('status').className,'error');
  console.log(JSON.stringify({newYearProducts:new Set(seasonal.map(key)).size,matchedRows:seasonal.length,sourceRows:data.daily.length,sourceData:'unchanged',oldNewSearch:'same complete history',dimensions:'preserved',ownerLoginAndPatch:'passed synthetic cryptographic roundtrip',encryptedFinancialData:'preserved'}));
 })().catch(error=>{console.error(error);process.exitCode=1});

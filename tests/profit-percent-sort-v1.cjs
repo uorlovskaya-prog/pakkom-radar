@@ -35,6 +35,6 @@ app.run('shown=sample.filter(g=>g.key!=="A");renderSku()');assert.deepEqual(app.
 assert.equal(app.run('JSON.stringify(sample)'),raw,'Financial inputs unchanged');
 const page=fs.readFileSync('management.html','utf8'),moduleSource=fs.readFileSync('management-src/profit-percent-sort-v1.js','utf8'),loader=fs.readFileSync('management-src/access-loader-v10.js','utf8');
 assert(page.includes(moduleSource));assert(page.includes(loader.trim()));
-assert(loader.includes('return applyPakkomProfitPercentSortV1(applyPakkomAdAttributionV1(applyPakkomSkuIdentityNgV1(applyPakkomManagementFiltersV9(html))));'));
+assert(loader.includes('applyPakkomProfitPercentSortV1(applyPakkomAdAttributionV1(applyPakkomSkuIdentityNgV1(applyPakkomManagementFiltersV9(original))))'));
 for(const script of page.matchAll(/<script>([\s\S]*?)<\/script>/g))new vm.Script(script[1]);
 console.log('PASS: ЧП % header, dropdown, both directions, negative/fractional/zero values, resize, selection, ruble sorting, input preservation and loader integration');

@@ -40,15 +40,24 @@
    try{return await crypto.subtle.importKey('pkcs8',pkcs8,{name:'RSA-OAEP',hash:'SHA-256'},false,['decrypt']);}
    finally{new Uint8Array(pkcs8).fill(0);}
  }
- async function content(r,key){
-   validate(r);const p=r.payload;
+ async function decodePayload(p,key){
    const raw=await crypto.subtle.decrypt({name:'RSA-OAEP'},key,bytes(p.wrappedKey));let aes;
    try{aes=await crypto.subtle.importKey('raw',raw,'AES-GCM',false,['decrypt']);}finally{new Uint8Array(raw).fill(0);}
    const compressed=await crypto.subtle.decrypt({name:'AES-GCM',iv:bytes(p.iv),additionalData:enc.encode('pakkom-management-dashboard-v1')},aes,bytes(p.ciphertext));
    const stream=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip'));
    const plain=await new Response(stream).arrayBuffer();
    if(hex(await crypto.subtle.digest('SHA-256',plain))!==p.sha256)throw Error('Release checksum mismatch');
-   const html=dec.decode(plain);new Uint8Array(plain).fill(0);return applyPakkomProfitPercentSortV1(applyPakkomAdAttributionV1(applyPakkomSkuIdentityNgV1(applyPakkomManagementFiltersV9(html))));
+   const text=dec.decode(plain);new Uint8Array(plain).fill(0);return text;
+ }
+ async function content(r,key){
+   validate(r);
+   if(r.basePayload&&r.payloadFormat!=='pakkom-management-data-update-v1')throw Error('Unsupported report update');
+   const original=await decodePayload(r.basePayload||r.payload,key);
+   const html=applyPakkomProfitPercentSortV1(applyPakkomAdAttributionV1(applyPakkomSkuIdentityNgV1(applyPakkomManagementFiltersV9(original))));
+   if(!r.basePayload)return html;
+   const update=JSON.parse(await decodePayload(r.payload,key));
+   if(update.through!==r.through)throw Error('Report date mismatch');
+   return applyPakkomReportDataUpdateV1(html,update);
  }
  function display(html,r){
    $('board').removeAttribute('src');$('board').srcdoc=html;$('active-date').textContent='Данные по '+r.through;

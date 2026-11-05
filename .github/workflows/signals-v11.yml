@@ -20,6 +20,8 @@ on:
       - management-src/profit-percent-sort-v1.js
       - tests/profit-percent-sort-v1.cjs
       - tests/fixtures/management-sort-before.html
+      - management-src/report-data-update-v1.js
+      - tests/report-data-update-v1.cjs
       - .github/workflows/signals-v11.yml
 permissions:
   contents: read
@@ -42,6 +44,8 @@ jobs:
         run: node tests/ad-attribution-v1.cjs
       - name: Net profit percentage sorting
         run: node tests/profit-percent-sort-v1.cjs
+      - name: Encrypted report data update
+        run: node tests/report-data-update-v1.cjs
       - name: Check shared signal version and encrypted owner release
         run: |
           node <<'JS'

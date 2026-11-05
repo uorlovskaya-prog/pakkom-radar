@@ -5,7 +5,8 @@ const code=fs.readFileSync(path.join(root,'management-src/ad-attribution-v1.js')
 const patch=box.module.exports.applyPakkomAdAttributionV1,spec=box.adjustments,near=(a,b)=>assert(Math.abs((a??0)-(b??0))<1e-6,`${a} != ${b}`);
 assert.equal(spec.length,21);near(spec.reduce((s,x)=>s+x.after-x.before,0),7000);
 const amounts={'1906086906':2566,'1906114868':4549,'1906153466':5547,'1906140569':2990};
-for(const [id,total] of Object.entries(amounts))near(data.daily.filter(r=>String(r.nmId)===id).reduce((s,r)=>s+r.ads,0),total);
+const correctionThrough=spec.map(s=>s.iso).sort().at(-1);
+for(const [id,total] of Object.entries(amounts))near(data.daily.filter(r=>r.iso<=correctionThrough&&String(r.nmId)===id).reduce((s,r)=>s+r.ads,0),total);
 for(const s of spec){const rows=data.daily.filter(r=>r.iso===s.iso&&(s.nmId?String(r.nmId)===s.nmId:r.sku===s.sku));assert.equal(rows.length,1);near(rows[0].ads,s.after);}
 assert.equal(patch(html),html,'corrected release must be idempotent');
 // Synthetic financial data only; production finance stays encrypted.
