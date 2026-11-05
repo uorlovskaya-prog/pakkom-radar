@@ -1,0 +1,32 @@
+<!doctype html><meta charset="utf-8"><title>Проверка сортировки ЧП %</title>
+<style>body{font:14px Arial;margin:20px}td,th{padding:10px;border-bottom:1px solid #ddd}th{cursor:pointer;background:#eee}.num{text-align:right}table{border-collapse:collapse}select,button{padding:8px;margin-bottom:15px}.sortmark{color:blue}</style>
+<h1>Проверка сортировки ЧП %</h1><p>Тестовые значения</p>
+<select id="fSort"><option value="profit">ЧП после НДС</option><option value="ordersRub">Заказы ₽</option><option value="ordersQty">Заказы шт.</option><option value="ads">Реклама</option><option value="cpo">CPO</option><option value="roi">ROI</option><option value="buyoutsQty">Выкуплено</option></select><button id="sortDir">↓ от большего</button><table id="skuTable"></table>
+<script>
+
+const $=id=>document.getElementById(id),n=v=>Number(v)||0;
+const state={sort:'profit',dir:-1,expanded:null};
+const sample=[['A',.125,100],['B',1.05,60],['C',-.3,-30],['D',.099,200],['E',0,0]].map(([key,margin,profit])=>({key,sku:key,nmId:key,subcategory:'Тест',m:{margin,profit,roi:margin,ordersRub:profit,ordersQty:1,ads:0,buyoutsQty:1}}));
+let shown=sample;
+function base(){return shown}function groups(rows){return rows}function passes(){return true}
+function money(v){return v==null?'—':v.toFixed(2)}function num(v){return v??'—'}function pct(v){return v==null?'—':(100*v).toFixed(1).replace('.',',')+' %'}function esc(v){return String(v)}
+function signalLabel(){return ''}function zone(){return {}}function pill(){return ''}function bindResize(){}
+function sortv(g){return state.sort==='cpo'?g.m.cpo:g.m[state.sort]}
+function getGroups(){return groups(base()).filter(passes).sort((a,b)=>(n(sortv(a))-n(sortv(b)))*state.dir)}
+const cols=[['signal','Сигнал',145],['subcategory','Подкатегория',155],['sku','SKU',300],['ordersRub','Заказы ₽',112],['ordersQty','Заказы шт.',85],['ads','Реклама ФАКТ',105],['drr','ДРР',75],['cpo','CPO факт',85],['cpoStd','CPO стандарт',100],['cpoMax','CPO max',88],['zone','Статус',90],['buyoutsQty','Выкуплено',88],['buyout','Выкуп %',78],['profit','ЧП после НДС',115],['margin','ЧП %',75],['roi','ROI',75]];
+function th(c){const m=state.sort===c[0]?` <span class="sortmark">${state.dir<0?'↓':'↑'}</span>`:'';return `<th data-k="${c[0]}" style="min-width:${c[2]}px;position:sticky">${c[1]}${m}<span class="resizer"></span></th>`}
+function renderSku(){
+ const gs=getGroups();let h='<tr>'+cols.map(th).join('')+'</tr>';
+ gs.forEach(g=>{const s=g.m,z=zone(s);h+=`<tr class="skurow" data-key="${esc(g.key)}"><td>${signalLabel(g)}</td><td>${esc(g.subcategory)}</td><td class="sku">${esc(g.sku)} <span style="color:var(--mut);font-weight:400">· ${esc(g.nmId)}</span></td><td class="num">${money(s.ordersRub)}</td><td class="num">${num(s.ordersQty)}</td><td class="num">${money(s.ads)}</td><td class="num">${pct(s.drr)}</td><td class="num">${money(s.cpo)}</td><td class="num">${money(s.cpoStd)}</td><td class="num">${money(s.cpoMax)}</td><td>${pill(z)}</td><td class="num">${num(s.buyoutsQty)}</td><td class="num">${pct(s.buyout)}</td><td class="num ${s.profit<0?'bad':'good'}">${money(s.profit)}</td><td class="num">${pct(s.margin)}</td><td class="num">${pct(s.roi)}</td></tr>`;if(state.expanded===g.key)h+=detail(g)});
+ if(!gs.length)h+=`<tr><td colspan="${cols.length}" style="text-align:center;color:var(--mut);padding:18px">Нет SKU по текущим фильтрам</td></tr>`;
+ $('skuTable').innerHTML=h;
+ document.querySelectorAll('.skurow').forEach(tr=>tr.onclick=e=>{if(e.target.classList.contains('resizer'))return;state.expanded=state.expanded===tr.dataset.key?null:tr.dataset.key;renderSku()});
+ document.querySelectorAll('#skuTable th[data-k]').forEach(x=>x.onclick=e=>{if(e.target.classList.contains('resizer'))return;let k=x.dataset.k;if(['ordersRub','ordersQty','ads','cpo','buyoutsQty','profit','roi'].includes(k)){if(state.sort===k)state.dir*=-1;else{state.sort=k;state.dir=-1;$('fSort').value=k}renderSku();syncSort()}});
+ bindResize('skuTable');
+}
+function detail(g){return ''}
+function syncSort(){$('fSort').value=state.sort;$('sortDir').textContent=state.dir<0?'↓ от большего':'↑ от меньшего'}
+$('fSort').onchange=e=>{state.sort=e.target.value;renderSku();syncSort()};
+$('sortDir').onclick=()=>{state.dir*=-1;renderSku();syncSort()};
+renderSku();syncSort();
+</script>

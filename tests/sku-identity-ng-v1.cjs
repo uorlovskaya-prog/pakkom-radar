@@ -52,7 +52,11 @@ assert.equal(run('getGroups()[0].rows.length'),current.length);
 run('openSignalSkuV11(getGroups()[0].key)');assert(rendered.elements.get('skuTable').innerHTML.includes('03.11.2026'));
 const patchSource=read('management-src/sku-identity-ng-v1.js'),p={};vm.createContext(p);vm.runInContext(patchSource,p);
 const oldGuard=read('tests/fixtures/sku-identity-before-ng.js').trim();
-const originalFrame=html.replace(guard,oldGuard).replace('</head>','<!-- PAKKOM_MANAGEMENT_FILTERS_V9 -->\n</head>');
+// The encrypted roundtrip uses public data, plus the owner's real sorting anchors.
+const sortingFixture=read('tests/fixtures/management-sort-before.html');
+const ownerSorting=sortingFixture.match(/<select id="fSort">[\s\S]*?<\/select>/)[0]+
+ '<script>'+sortingFixture.slice(sortingFixture.indexOf('function renderSku(){'),sortingFixture.indexOf('function syncSort(){'))+'</script>';
+const originalFrame=html.replace(guard,oldGuard).replace('</head>','<!-- PAKKOM_MANAGEMENT_FILTERS_V9 -->\n</head>').replace('</body>',ownerSorting+'\n</body>');
 const patched=p.applyPakkomSkuIdentityNgV1(originalFrame);
 assert(patched.includes(guard));assert.equal(p.applyPakkomSkuIdentityNgV1(patched),patched);
 assert.equal(originalFrame.replace(oldGuard,''),patched.replace(guard,''),'Owner patch may change only identity code');
@@ -77,7 +81,8 @@ assert(!owner.includes('"daily":'),'Owner financial data must remain encrypted')
  await new Promise(resolve=>setTimeout(resolve,10));
  el('password').value='wrong';await el('login').onsubmit({preventDefault(){}});assert(!el('board').srcdoc,'Wrong password must remain blocked');
  el('password').value=secret;await el('login').onsubmit({preventDefault(){}});
- assert.equal(el('board').srcdoc,patched,'Real owner loader must apply the same verified NG code after decryption');
+ const {applyPakkomProfitPercentSortV1}=require('../management-src/profit-percent-sort-v1.js');
+ assert.equal(el('board').srcdoc,applyPakkomProfitPercentSortV1(patched),'Real owner loader must apply identity and percentage sorting after decryption');
  assert.equal(el('password').value,'');assert.equal(el('gate').hidden,true);
  console.log(JSON.stringify({newYearProducts:new Set(seasonal.map(key)).size,matchedRows:seasonal.length,sourceRows:data.daily.length,sourceData:'unchanged',oldNewSearch:'same complete history',dimensions:'preserved',ownerLoginAndPatch:'passed synthetic cryptographic roundtrip',encryptedFinancialData:'preserved'}));
 })().catch(error=>{console.error(error);process.exitCode=1});

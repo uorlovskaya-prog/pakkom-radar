@@ -17,6 +17,9 @@ on:
       - management-src/ad-attribution-v1.js
       - ad-campaign-map-v1.json
       - tests/ad-attribution-v1.cjs
+      - management-src/profit-percent-sort-v1.js
+      - tests/profit-percent-sort-v1.cjs
+      - tests/fixtures/management-sort-before.html
       - .github/workflows/signals-v11.yml
 permissions:
   contents: read
@@ -37,6 +40,8 @@ jobs:
         run: node tests/sku-identity-ng-v1.cjs
       - name: Advertising attribution and financial reconciliation
         run: node tests/ad-attribution-v1.cjs
+      - name: Net profit percentage sorting
+        run: node tests/profit-percent-sort-v1.cjs
       - name: Check shared signal version and encrypted owner release
         run: |
           node <<'JS'

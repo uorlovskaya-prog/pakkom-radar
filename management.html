@@ -182,6 +182,32 @@ function applyPakkomAdAttributionV1(source){
 }
 if(typeof module!=='undefined'&&module.exports)module.exports={applyPakkomAdAttributionV1};
 
+/* PAKKOM_PROFIT_PERCENT_SORT_V1: code-only correction after normal decryption. */
+function applyPakkomProfitPercentSortV1(source){
+ const marker='<!-- PAKKOM_PROFIT_PERCENT_SORT_V1 -->';
+ if(source.includes(marker))return source;
+ const start=source.indexOf('function renderSku(){'),end=source.indexOf('function detail(g){',start);
+ if(start<0||end<start)throw Error('Profit percentage sort: table renderer not found');
+ let matches=0;
+ const table=source.slice(start,end).replace(/\[([^\[\]\n]+)\]\.includes\(k\)/g,(list,items)=>{
+  const keys=items.match(/['"]([^'"]+)['"]/g)||[];
+  const names=keys.map(k=>k.slice(1,-1));
+  if(!names.includes('profit')||!names.includes('roi'))return list;
+  matches++;
+  return names.includes('margin')?list:'['+items+",'margin'].includes(k)";
+ });
+ if(matches!==1)throw Error('Profit percentage sort: ambiguous header handler');
+ let html=source.slice(0,start)+table+source.slice(end);
+ let selects=0;
+ html=html.replace(/<select\b[^>]*\bid="fSort"[^>]*>([\s\S]*?)<\/select>/g,(select,options)=>{
+  selects++;
+  return /\bvalue=["']margin["']/.test(options)?select:select.replace('</select>','<option value="margin">ЧП %</option></select>');
+ });
+ if(selects!==1)throw Error('Profit percentage sort: sort selector not found');
+ return marker+'\n'+html;
+}
+if(typeof module!=='undefined'&&module.exports)module.exports={applyPakkomProfitPercentSortV1};
+
 /* PAKKOM_MANAGEMENT_ACCESS_V10: persistent, non-extractable local key; never stores a password. */
 'use strict';
 (()=>{
@@ -232,7 +258,7 @@ if(typeof module!=='undefined'&&module.exports)module.exports={applyPakkomAdAttr
    const stream=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip'));
    const plain=await new Response(stream).arrayBuffer();
    if(hex(await crypto.subtle.digest('SHA-256',plain))!==p.sha256)throw Error('Release checksum mismatch');
-   const html=dec.decode(plain);new Uint8Array(plain).fill(0);return applyPakkomAdAttributionV1(applyPakkomSkuIdentityNgV1(applyPakkomManagementFiltersV9(html)));
+   const html=dec.decode(plain);new Uint8Array(plain).fill(0);return applyPakkomProfitPercentSortV1(applyPakkomAdAttributionV1(applyPakkomSkuIdentityNgV1(applyPakkomManagementFiltersV9(html))));
  }
  function display(html,r){
    $('board').removeAttribute('src');$('board').srcdoc=html;$('active-date').textContent='Данные по '+r.through;

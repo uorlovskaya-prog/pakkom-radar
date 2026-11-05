@@ -48,7 +48,7 @@
    const stream=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip'));
    const plain=await new Response(stream).arrayBuffer();
    if(hex(await crypto.subtle.digest('SHA-256',plain))!==p.sha256)throw Error('Release checksum mismatch');
-   const html=dec.decode(plain);new Uint8Array(plain).fill(0);return applyPakkomAdAttributionV1(applyPakkomSkuIdentityNgV1(applyPakkomManagementFiltersV9(html)));
+   const html=dec.decode(plain);new Uint8Array(plain).fill(0);return applyPakkomProfitPercentSortV1(applyPakkomAdAttributionV1(applyPakkomSkuIdentityNgV1(applyPakkomManagementFiltersV9(html))));
  }
  function display(html,r){
    $('board').removeAttribute('src');$('board').srcdoc=html;$('active-date').textContent='Данные по '+r.through;
