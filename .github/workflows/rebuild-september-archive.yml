@@ -1,0 +1,47 @@
+name: Restore September warehouse archive navigation
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/rebuild-september-archive.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: main
+      - name: Rebuild verified September archive and add symmetric month navigation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp sklad/index.html "$RUNNER_TEMP/october-index.html"
+          cp sklad/version.json "$RUNNER_TEMP/october-version.json"
+          python sklad-src/build.py
+          mkdir -p sklad/2026-09
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('sklad/index.html')
+          s=p.read_text(encoding='utf-8')
+          nav='''<div id="monthNavFix" style="position:sticky;top:0;z-index:9999;background:#fff;border-bottom:1px solid #d7e0e4;padding:10px 16px;display:flex;gap:8px;align-items:center;font-family:Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif"><span style="padding:8px 12px;border-radius:10px;background:#008c83;color:#fff;font-size:13px">Сентябрь 2026</span><a href="../" style="padding:8px 12px;border:1px solid #d7e0e4;border-radius:10px;text-decoration:none;color:#0d2a3a;background:#fff;font-size:13px;font-weight:600">Октябрь 2026 →</a></div>'''
+          if '<body>' not in s:
+              raise RuntimeError('September body not found')
+          s=s.replace('<body>','<body>'+nav,1)
+          Path('sklad/2026-09/index.html').write_text(s,encoding='utf-8')
+          PY
+          cp "$RUNNER_TEMP/october-index.html" sklad/index.html
+          cp "$RUNNER_TEMP/october-version.json" sklad/version.json
+          grep -q 'Октябрь 2026 →' sklad/2026-09/index.html
+          grep -q 'Октябрь 2026' sklad/index.html
+          git add -- sklad/2026-09/index.html
+          if git diff --cached --quiet; then
+            echo "September archive already fixed."
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'Restore September warehouse page with return navigation'
+            git push origin HEAD:main
+          fi
