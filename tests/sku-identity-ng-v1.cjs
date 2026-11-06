@@ -97,6 +97,21 @@ assert(!owner.includes('"daily":'),'Owner financial data must remain encrypted')
  await el('refresh').onclick();assert.equal(el('board').srcdoc,applyPakkomReportDataUpdateV1(applyPakkomProfitPercentSortV1(patched),update));
  assert.equal(el('active-date').textContent,'Данные по '+nextDate);assert.equal(el('status').textContent,'Обновлено');
  await el('refresh').onclick();assert.equal(el('status').textContent,'У вас актуальная версия');
- const stable=el('board').srcdoc;nextRelease.payload.sha256='0'.repeat(64);await el('refresh').onclick();assert.equal(el('board').srcdoc,stable);assert.equal(el('status').className,'error');
+ const secondIso=new Date(Date.parse(nextIso+'T00:00:00Z')+86400000).toISOString().slice(0,10),secondDate=secondIso.split('-').reverse().join('.');
+ const secondUpdate={...update,id:'synthetic-second-report',expectedThrough:nextDate,through:secondDate,
+  insertions:[{...update.insertions[0],date:secondDate,iso:secondIso}],dailyChecks:[{...update.dailyChecks[0],iso:secondIso}],business:{profit:1289,ads:1009}};
+ const secondText=JSON.stringify(secondUpdate),secondRaw=random(32),secondIv=random(12),secondAes=await sub.importKey('raw',secondRaw,'AES-GCM',false,['encrypt']);
+ const secondCipher=await sub.encrypt({name:'AES-GCM',iv:secondIv,additionalData:enc.encode('pakkom-management-dashboard-v1')},secondAes,gzipSync(secondText));
+ const secondRelease={...nextRelease,through:secondDate,previousUpdates:[nextRelease.payload],payload:{iv:b64(secondIv),wrappedKey:b64(await sub.encrypt({name:'RSA-OAEP'},pair.publicKey,secondRaw)),ciphertext:b64(secondCipher),sha256:Buffer.from(await sub.digest('SHA-256',enc.encode(secondText))).toString('hex')}};
+ const firstReport=el('board').srcdoc;
+ const corruptHistory={...secondRelease,previousUpdates:[{...nextRelease.payload,sha256:'0'.repeat(64)}]};
+ context.fetch=async()=>({ok:true,text:async()=>'<script id="pakkom-sealed-release" type="application/json">'+JSON.stringify(corruptHistory)+'</script>'});
+ await el('refresh').onclick();assert.equal(el('board').srcdoc,firstReport);assert.equal(el('status').className,'error');
+ context.fetch=async()=>({ok:true,text:async()=>'<script id="pakkom-sealed-release" type="application/json">'+JSON.stringify(secondRelease)+'</script>'});
+ await el('refresh').onclick();
+ assert.equal(el('board').srcdoc,applyPakkomReportDataUpdateV1(firstReport,secondUpdate),'Chained updates must retain the earlier inserted day');
+ assert.equal(el('active-date').textContent,'Данные по '+secondDate);
+ const stable=el('board').srcdoc;secondRelease.payload.sha256='0'.repeat(64);
+ await el('refresh').onclick();assert.equal(el('board').srcdoc,stable);assert.equal(el('status').className,'error');
  console.log(JSON.stringify({newYearProducts:new Set(seasonal.map(key)).size,matchedRows:seasonal.length,sourceRows:data.daily.length,sourceData:'unchanged',oldNewSearch:'same complete history',dimensions:'preserved',ownerLoginAndPatch:'passed synthetic cryptographic roundtrip',encryptedFinancialData:'preserved'}));
 })().catch(error=>{console.error(error);process.exitCode=1});

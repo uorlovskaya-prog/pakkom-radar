@@ -53,11 +53,18 @@
    validate(r);
    if(r.basePayload&&r.payloadFormat!=='pakkom-management-data-update-v1')throw Error('Unsupported report update');
    const original=await decodePayload(r.basePayload||r.payload,key);
-   const html=applyPakkomProfitPercentSortV1(applyPakkomAdAttributionV1(applyPakkomSkuIdentityNgV1(applyPakkomManagementFiltersV9(original))));
+   let html=applyPakkomProfitPercentSortV1(applyPakkomAdAttributionV1(applyPakkomSkuIdentityNgV1(applyPakkomManagementFiltersV9(original))));
    if(!r.basePayload)return html;
-   const update=JSON.parse(await decodePayload(r.payload,key));
-   if(update.through!==r.through)throw Error('Report date mismatch');
-   return applyPakkomReportDataUpdateV1(html,update);
+   const prior=r.previousUpdates||[];
+   if(!Array.isArray(prior))throw Error('Invalid report update history');
+   const chain=[...prior,r.payload];
+   if(new Set(chain.map(p=>p.sha256)).size!==chain.length)throw Error('Duplicate report update');
+   for(let i=0;i<chain.length;i++){
+     const update=JSON.parse(await decodePayload(chain[i],key));
+     if(i===chain.length-1&&update.through!==r.through)throw Error('Report date mismatch');
+     html=applyPakkomReportDataUpdateV1(html,update);
+   }
+   return html;
  }
  function display(html,r){
    $('board').removeAttribute('src');$('board').srcdoc=html;$('active-date').textContent='Данные по '+r.through;
