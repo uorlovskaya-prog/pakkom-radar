@@ -3,25 +3,31 @@
  const [baseResp,upResp]=await Promise.all([fetch('management-base-20261105.html',{cache:'no-store'}),fetch('data/management-update-20261108.json',{cache:'no-store'})]);
  if(!baseResp.ok||!upResp.ok)throw Error('load');
  let html=await baseResp.text(),sealed=await upResp.json();
- const re=/<script id="pakkom-sealed-release" type="application\\/json">([\\s\\S]*?)<\\/script>/,m=html.match(re);if(!m)throw Error('release');
- const r=JSON.parse(m[1]);
+ const open='<script id="pakkom-sealed-release" type="application/json">',close='</scr'+'ipt>';
+ const a=html.indexOf(open),b=html.indexOf(close,a+open.length);if(a<0||b<0)throw Error('release');
+ const r=JSON.parse(html.slice(a+open.length,b));
  r.previousUpdates=[...(r.previousUpdates||[]),r.payload];
  r.payload=sealed.payload;r.through=sealed.through;r.payloadFormat='pakkom-management-data-update-v1';
- html=html.replace(re,'<script id="pakkom-sealed-release" type="application/json">'+JSON.stringify(r).replace(/</g,'\\u003c')+'<\\/script>');
+ html=html.slice(0,a+open.length)+JSON.stringify(r).replace(/</g,'\\u003c')+html.slice(b);
  const patch=`
 function applyPakkomOrdersAfterCommissionV1(source){
- const m=source.match(/<script id="data" type="application\\/json">([\\s\\S]*?)<\\/script>/);if(!m)return source;
- const d=JSON.parse(m[1]);for(const x of d.daily||[]){if(Number.isFinite(x.ordersNetRub)){x.ordersRub=x.ordersNetRub;x.drr=x.ordersRub?(Number(x.ads)||0)/x.ordersRub:null;}}
+ const open='<script id="data" type="application/json">',close='</scr'+'ipt>';
+ const a=source.indexOf(open),b=source.indexOf(close,a+open.length);if(a<0||b<0)return source;
+ const d=JSON.parse(source.slice(a+open.length,b));
+ for(const x of d.daily||[]){if(Number.isFinite(x.ordersNetRub)){x.ordersRub=x.ordersNetRub;x.drr=x.ordersRub?(Number(x.ads)||0)/x.ordersRub:null;}}
  d.ordersAmountBasis='after_commission';d.ordersSourceBasis='after_commission';
  if(d.skuTotals){d.skuTotals.ordersRub=(d.daily||[]).reduce((s,x)=>s+(Number(x.ordersRub)||0),0);if('drr' in d.skuTotals)d.skuTotals.drr=d.skuTotals.ordersRub?d.skuTotals.ads/d.skuTotals.ordersRub:null;}
  if(d.business&&'ordersRub' in d.business){d.business.ordersRub=(d.daily||[]).reduce((s,x)=>s+(Number(x.ordersRub)||0),0);if('drr' in d.business)d.business.drr=d.business.ordersRub?d.business.ads/d.business.ordersRub:null;}
- const j=JSON.stringify(d).replace(/</g,'\\u003c'),p=m.index+m[0].indexOf(m[1]);return source.slice(0,p)+j+source.slice(p+m[1].length);
+ const j=JSON.stringify(d).replace(/</g,'\\u003c');return source.slice(0,a+open.length)+j+source.slice(b);
 }
 `;
  const marker="/* PAKKOM_MANAGEMENT_ACCESS_V10:";
- html=html.replace(marker,patch+'\\n'+marker);
+ if(!html.includes(marker))throw Error('loader marker');
+ html=html.replace(marker,patch+'\n'+marker);
  html=html.replace("if(!r.basePayload)return html;","if(!r.basePayload)return applyPakkomOrdersAfterCommissionV1(html);");
- html=html.replace("   return html;\\n  }\\n  function display","   return applyPakkomOrdersAfterCommissionV1(html);\\n  }\\n  function display");
+ const di=html.indexOf("  function display"),ri=html.lastIndexOf("return html;",di);
+ if(di<0||ri<0)throw Error('content return');
+ html=html.slice(0,ri)+"return applyPakkomOrdersAfterCommissionV1(html);"+html.slice(ri+"return html;".length);
  document.open();document.write(html);document.close();
 })().catch(()=>{document.body.innerHTML='<div class="s">Не удалось загрузить дашборд. Обнови страницу.</div>';});
 <\/script></body></html>
