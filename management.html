@@ -14,8 +14,8 @@ function applyPakkomOrdersAfterCommissionV1(source){
  const open='<script id="data" type="application/json">',close='</scr'+'ipt>';
  const a=source.indexOf(open),b=source.indexOf(close,a+open.length);if(a<0||b<0)return source;
  const d=JSON.parse(source.slice(a+open.length,b));
- for(const x of d.daily||[]){if(Number.isFinite(x.ordersNetRub)){x.ordersRub=x.ordersNetRub;x.drr=x.ordersRub?(Number(x.ads)||0)/x.ordersRub:null;}}
- d.ordersAmountBasis='after_commission';d.ordersSourceBasis='after_commission';
+ for(const x of d.daily||[]){if(Number.isFinite(x.ordersNetRub)){x.ordersRub=x.ordersNetRub/0.70;x.drr=x.ordersRub?(Number(x.ads)||0)/x.ordersRub:null;}}
+ d.ordersAmountBasis='with_commission';d.ordersSourceBasis='after_commission';
  if(d.skuTotals){d.skuTotals.ordersRub=(d.daily||[]).reduce((s,x)=>s+(Number(x.ordersRub)||0),0);if('drr' in d.skuTotals)d.skuTotals.drr=d.skuTotals.ordersRub?d.skuTotals.ads/d.skuTotals.ordersRub:null;}
  if(d.business&&'ordersRub' in d.business){d.business.ordersRub=(d.daily||[]).reduce((s,x)=>s+(Number(x.ordersRub)||0),0);if('drr' in d.business)d.business.drr=d.business.ordersRub?d.business.ads/d.business.ordersRub:null;}
  const j=JSON.stringify(d).replace(/</g,'\\u003c');return source.slice(0,a+open.length)+j+source.slice(b);
