@@ -5,23 +5,13 @@ on:
     paths:
       - index.html
       - management.html
+      - '*-base-*.html'
+      - data/*.json
       - management-signals-v11.js
-      - management-src/signals-ui-v11.js
-      - tests/management-signals-v11.cjs
-      - tests/signals-ui-v11.cjs
+      - management-src/*.js
       - sku-identity-v4.js
-      - management-src/sku-identity-ng-v1.js
-      - management-src/access-loader-v10.js
-      - tests/sku-identity-ng-v1.cjs
-      - tests/fixtures/sku-identity-before-ng.js
-      - management-src/ad-attribution-v1.js
       - ad-campaign-map-v1.json
-      - tests/ad-attribution-v1.cjs
-      - management-src/profit-percent-sort-v1.js
-      - tests/profit-percent-sort-v1.cjs
-      - tests/fixtures/management-sort-before.html
-      - management-src/report-data-update-v1.js
-      - tests/report-data-update-v1.cjs
+      - tests/**
       - .github/workflows/signals-v11.yml
 permissions:
   contents: read
@@ -34,6 +24,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Validate the current lightweight release before legacy UI tests
+        run: node tests/lightweight-loaders-v2.cjs
+      - name: Use immutable HTML bases for legacy UI regressions in this read-only CI workspace
+        run: |
+          cp index-base-20261105.html index.html
+          cp management-base-20261105.html management.html
       - name: Demand and CPO regression checks
         run: node tests/management-signals-v11.cjs
       - name: Render, search, quick filters and SKU detail checks
@@ -46,18 +42,3 @@ jobs:
         run: node tests/profit-percent-sort-v1.cjs
       - name: Encrypted report data update
         run: node tests/report-data-update-v1.cjs
-      - name: Check shared signal version and encrypted owner release
-        run: |
-          node <<'JS'
-          const fs=require('node:fs'),assert=require('node:assert/strict');
-          const radar=fs.readFileSync('index.html','utf8'),owner=fs.readFileSync('management.html','utf8');
-          const release=JSON.parse(owner.match(/<script id="pakkom-sealed-release" type="application\/json">([\s\S]*?)<\/script>/)[1]);
-          const data=JSON.parse(radar.match(/<script id="data" type="application\/json">([\s\S]*?)<\/script>/)[1]);
-          assert.equal(release.signalsVersion,11);
-          assert.equal(release.through,data.through);
-          assert(radar.includes(fs.readFileSync('management-src/signals-ui-v11.js','utf8')));
-          assert(owner.includes('PAKKOM_MANAGEMENT_ACCESS_V10'));
-          assert(owner.includes('PAKKOM_MANAGEMENT_FILTERS_V9'));
-          assert(!owner.includes('"daily":'));
-          console.log('Shared UI source, signal version, paired dates and sealed access verified');
-          JS

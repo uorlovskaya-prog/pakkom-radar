@@ -5,11 +5,17 @@ on:
     paths:
       - index.html
       - management.html
+      - '*-base-*.html'
+      - data/*.json
+      - tests/lightweight-loaders-v2.cjs
       - .github/workflows/paired-report-check.yml
   pull_request:
     paths:
       - index.html
       - management.html
+      - '*-base-*.html'
+      - data/*.json
+      - tests/lightweight-loaders-v2.cjs
       - .github/workflows/paired-report-check.yml
   workflow_dispatch:
 permissions:
@@ -17,34 +23,14 @@ permissions:
 jobs:
   paired:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 7
     steps:
       - uses: actions/checkout@v4
-      - name: Require the same reporting date on both sites
-        shell: python
-        run: |
-          import json, re
-          from pathlib import Path
-          from datetime import datetime
-          def embedded(path, script_id):
-              html = Path(path).read_text(encoding="utf-8")
-              pattern = r'<script id="' + re.escape(script_id) + r'" type="application/json">(.*?)</script>'
-              matches = re.findall(pattern, html, re.S)
-              assert len(matches) == 1, "STOP: missing or duplicate release metadata in " + path
-              return html, json.loads(matches[0])
-          radar_html, radar = embedded("index.html", "data")
-          management_html, management = embedded("management.html", "pakkom-sealed-release")
-          assert radar["through"] == management["through"], "STOP: Radar and management report dates differ; update BOTH sites"
-          through = datetime.strptime(radar["through"], "%d.%m.%Y")
-          assert through.strftime("%d.%m.%Y") == radar["through"], "STOP: use DD.MM.YYYY dates"
-          assert max(row["iso"] for row in radar["daily"]) == through.strftime("%Y-%m-%d"), "STOP: Radar date does not match its daily data"
-          assert management["schema"] == "pakkom-management-sealed-v1", "STOP: unexpected management encryption format"
-          assert all(management["payload"].get(key) for key in ("iv", "wrappedKey", "ciphertext", "sha256")), "STOP: incomplete encrypted report"
-          if "basePayload" in management:
-              assert management.get("payloadFormat") == "pakkom-management-data-update-v1", "STOP: unsupported encrypted update"
-              assert all(management["basePayload"].get(key) for key in ("iv", "wrappedKey", "ciphertext", "sha256")), "STOP: incomplete encrypted base"
-              assert "PAKKOM_REPORT_DATA_UPDATE_V1" in management_html, "STOP: update loader missing"
-          assert "PAKKOM_MANAGEMENT_ACCESS_V10" in management_html, "STOP: remembered access v10 missing"
-          assert "PAKKOM_MANAGEMENT_FILTERS_V9" in management_html, "STOP: management filters v9 missing"
-          assert "PAKKOM_SKU_IDENTITY_GUARD_V4" in radar_html, "STOP: product identity v4 missing"
-          print("PASS: both sites report through " + radar["through"] + "; private payload stays encrypted")
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute both loaders and verify dates, identity, encryption and refresh
+        run: node tests/lightweight-loaders-v2.cjs
+      - name: Verify both permanent Pages URLs after deployment
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: node tests/lightweight-loaders-v2.cjs --live

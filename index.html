@@ -6,8 +6,8 @@
  const open='<script id="data" type="application/json">',close='</scr'+'ipt>';
  const a=html.indexOf(open),b=html.indexOf(close,a+open.length);if(a<0||b<0)throw Error('data');
  const d=JSON.parse(html.slice(a+open.length,b));
- for(const r of d.daily||[]){if(Number.isFinite(r.ordersNetRub)){r.ordersRub=r.ordersNetRub/0.70;r.drr=r.ordersRub?(Number(r.ads)||0)/r.ordersRub:null;}}
  d.daily=(d.daily||[]).filter(r=>r.iso<'2026-11-06').concat(up.rows||[]);
+ for(const r of d.daily||[]){if(Number.isFinite(r.ordersNetRub)){r.ordersRub=r.ordersNetRub/0.70;r.drr=r.ordersRub?(Number(r.ads)||0)/r.ordersRub:null;}}
  d.through=up.through;
  d.weeks=(d.weeks||[]).filter(w=>w.key!=='2026-11-02');
  d.weeks.push({key:'2026-11-02',start:'2026-11-02',end:'2026-11-08',label:'02.11–08.11'});
