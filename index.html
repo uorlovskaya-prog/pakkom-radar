@@ -3,9 +3,9 @@
  const [baseResp,upResp]=await Promise.all([fetch('index-base-20261105.html',{cache:'no-store'}),fetch('data/radar-update-20261108.json',{cache:'no-store'})]);
  if(!baseResp.ok||!upResp.ok)throw Error('load');
  let html=await baseResp.text(),up=await upResp.json();
- const re=/<script id="data" type="application\\/json">([\\s\\S]*?)<\\/script>/,m=html.match(re);if(!m)throw Error('data');
- const d=JSON.parse(m[1]);
- // Canonical project rule: ordersRub is already AFTER WB commission.
+ const open='<script id="data" type="application/json">',close='</scr'+'ipt>';
+ const a=html.indexOf(open),b=html.indexOf(close,a+open.length);if(a<0||b<0)throw Error('data');
+ const d=JSON.parse(html.slice(a+open.length,b));
  for(const r of d.daily||[]){if(Number.isFinite(r.ordersNetRub)){r.ordersRub=r.ordersNetRub;r.drr=r.ordersRub?(Number(r.ads)||0)/r.ordersRub:null;}}
  d.daily=(d.daily||[]).filter(r=>r.iso<'2026-11-06').concat(up.rows||[]);
  d.through=up.through;
@@ -14,7 +14,7 @@
  d.ordersAmountBasis='after_commission';d.ordersSourceBasis='after_commission';d.ordersCommissionRate=0.3;
  d.note='Данные по 08.11.2026. Заказы в ₽ — сумма после комиссии WB напрямую.';
  const json=JSON.stringify(d).replace(/</g,'\\u003c');
- html=html.replace(re,'<script id="data" type="application/json">'+json+'<\\/script>');
+ html=html.slice(0,a+open.length)+json+html.slice(b);
  document.open();document.write(html);document.close();
 })().catch(()=>{document.body.innerHTML='<div class="s">Не удалось загрузить Radar. Обнови страницу.</div>';});
 <\/script></body></html>
