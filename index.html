@@ -6,13 +6,13 @@
  const open='<script id="data" type="application/json">',close='</scr'+'ipt>';
  const a=html.indexOf(open),b=html.indexOf(close,a+open.length);if(a<0||b<0)throw Error('data');
  const d=JSON.parse(html.slice(a+open.length,b));
- for(const r of d.daily||[]){if(Number.isFinite(r.ordersNetRub)){r.ordersRub=r.ordersNetRub;r.drr=r.ordersRub?(Number(r.ads)||0)/r.ordersRub:null;}}
+ for(const r of d.daily||[]){if(Number.isFinite(r.ordersNetRub)){r.ordersRub=r.ordersNetRub/0.70;r.drr=r.ordersRub?(Number(r.ads)||0)/r.ordersRub:null;}}
  d.daily=(d.daily||[]).filter(r=>r.iso<'2026-11-06').concat(up.rows||[]);
  d.through=up.through;
  d.weeks=(d.weeks||[]).filter(w=>w.key!=='2026-11-02');
  d.weeks.push({key:'2026-11-02',start:'2026-11-02',end:'2026-11-08',label:'02.11–08.11'});
- d.ordersAmountBasis='after_commission';d.ordersSourceBasis='after_commission';d.ordersCommissionRate=0.3;
- d.note='Данные по 08.11.2026. Заказы в ₽ — сумма после комиссии WB напрямую.';
+ d.ordersAmountBasis='with_commission';d.ordersSourceBasis='after_commission';d.ordersCommissionRate=0.3;
+ d.note='Данные по 08.11.2026. Источник report хранит сумму заказов без комиссии WB; для управленческого отчёта сумма с комиссией восстановлена как ordersNetRub / 0,70.';
  const json=JSON.stringify(d).replace(/</g,'\\u003c');
  html=html.slice(0,a+open.length)+json+html.slice(b);
  document.open();document.write(html);document.close();
