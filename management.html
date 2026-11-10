@@ -1,28 +1,36 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Пакком — Управленческий дашборд</title><style>body{margin:0;background:#08101c;color:#e7eef8;font:14px Arial,sans-serif;display:grid;place-items:center;min-height:100vh}.s{opacity:.8}</style></head><body><div class="s">Загружаю управленческий дашборд…</div><script id="pakkom-management-loader" type="application/json">{"base":"management-base-20261105.html","update":"data/management-update-20261108.json"}</script>
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Пакком — Управленческий дашборд</title><style>body{margin:0;background:#08101c;color:#e7eef8;font:14px Arial,sans-serif;display:grid;place-items:center;min-height:100vh}.s{opacity:.8}</style></head><body><div class="s">Загружаю управленческий дашборд…</div><script id="pakkom-management-loader" type="application/json">{"base":"management-base-20261105.html","updates":["data/management-update-20261108.json","data/management-update-20261109.json"]}</script>
 <script>
-// PAKKOM_MANAGEMENT_LIGHTWEIGHT_V2: preserve the sealed base and update chain.
+// PAKKOM_MANAGEMENT_LIGHTWEIGHT_V3: preserve sealed base and ordered update chain.
 function pakkomReleaseBlockV2(html){
  const open='<script id="pakkom-sealed-release" type="application/json">',close='</scr'+'ipt>';
  const a=html.indexOf(open),b=html.indexOf(close,a+open.length);
  if(a<0||b<0)throw Error('Missing sealed release');
  return {start:a+open.length,end:b,release:JSON.parse(html.slice(a+open.length,b))};
 }
-function pakkomMergeReleaseV2(base,sealed){
+function pakkomMergeReleaseV2(base,sealeds){
  const r=pakkomReleaseBlockV2(base).release;
- if(!r.account||!r.payload||!sealed.payload||!sealed.through)throw Error('Invalid sealed source');
- r.previousUpdates=[...(r.previousUpdates||[]),r.payload];
- r.payload=sealed.payload;r.through=sealed.through;r.payloadFormat='pakkom-management-data-update-v1';
- const hashes=[...r.previousUpdates,r.payload].map(p=>p.sha256);
+ if(!r.account||!r.payload)throw Error('Invalid sealed base');
+ const list=Array.isArray(sealeds)?sealeds:[sealeds];
+ for(const sealed of list){
+  if(!sealed||!sealed.payload||!sealed.through)throw Error('Invalid sealed source');
+  r.previousUpdates=[...(r.previousUpdates||[]),r.payload];
+  r.payload=sealed.payload;r.through=sealed.through;r.payloadFormat='pakkom-management-data-update-v1';
+ }
+ const hashes=[...(r.previousUpdates||[]),r.payload].map(p=>p.sha256);
  if(hashes.some(x=>!x)||new Set(hashes).size!==hashes.length)throw Error('Invalid update chain');
  return r;
 }
 async function pakkomReadSourcesV2(config,pageUrl){
- const baseUrl=new URL(config.base,pageUrl),updateUrl=new URL(config.update,pageUrl);
- if(baseUrl.origin!==new URL(pageUrl).origin||updateUrl.origin!==baseUrl.origin)throw Error('Unexpected source origin');
+ const origin=new URL(pageUrl).origin,baseUrl=new URL(config.base,pageUrl);
+ const paths=Array.isArray(config.updates)?config.updates:(config.update?[config.update]:[]);
+ const updateUrls=paths.map(p=>new URL(p,pageUrl));
+ if(baseUrl.origin!==origin||updateUrls.some(u=>u.origin!==origin))throw Error('Unexpected source origin');
  const options={cache:'no-store',credentials:'omit',redirect:'error'};
- const [br,ur]=await Promise.all([fetch(baseUrl,options),fetch(updateUrl,options)]);
- if(!br.ok||!ur.ok)throw Error('Report source unavailable');
- return {base:await br.text(),sealed:await ur.json()};
+ const responses=await Promise.all([fetch(baseUrl,options),...updateUrls.map(u=>fetch(u,options))]);
+ if(responses.some(r=>!r.ok))throw Error('Report source unavailable');
+ const base=await responses[0].text(),sealeds=[];
+ for(let i=1;i<responses.length;i++)sealeds.push(await responses[i].json());
+ return {base,sealeds};
 }
 async function pakkomLatestReleaseV2(pageUrl){
  const response=await fetch(pageUrl,{cache:'no-store',credentials:'omit',redirect:'error'});
@@ -32,7 +40,7 @@ async function pakkomLatestReleaseV2(pageUrl){
  const config=doc.getElementById('pakkom-management-loader');
  if(!config)return pakkomReleaseBlockV2(html).release;
  const sources=await pakkomReadSourcesV2(JSON.parse(config.textContent),pageUrl);
- return pakkomMergeReleaseV2(sources.base,sources.sealed);
+ return pakkomMergeReleaseV2(sources.base,sources.sealeds);
 }
 function applyPakkomOrdersWithCommissionV2(source){
  const open='<script id="data" type="application/json">',close='</scr'+'ipt>';
@@ -49,7 +57,7 @@ function applyPakkomOrdersWithCommissionV2(source){
  const pageUrl=new URL(document.baseURI);pageUrl.hash='';
  const sources=await pakkomReadSourcesV2(config,pageUrl);
  let html=sources.base;
- const block=pakkomReleaseBlockV2(html),release=pakkomMergeReleaseV2(html,sources.sealed);
+ const block=pakkomReleaseBlockV2(html),release=pakkomMergeReleaseV2(html,sources.sealeds);
  html=html.slice(0,block.start)+JSON.stringify(release).replace(/</g,'\\u003c')+html.slice(block.end);
  const marker='/* PAKKOM_MANAGEMENT_ACCESS_V10:';
  if(html.split(marker).length!==2)throw Error('Unknown access loader');
@@ -58,11 +66,9 @@ function applyPakkomOrdersWithCommissionV2(source){
  const early='if(!r.basePayload)return html;';
  if(html.split(early).length!==2)throw Error('Unknown report content entry');
  html=html.replace(early,'if(!r.basePayload)return applyPakkomOrdersWithCommissionV2(html);');
- // Match the function boundary, not its indentation. The original loader uses ONE space.
  const end=/return html;(\s*\}\s*function\s+display\s*\()/g;
  if((html.match(end)||[]).length!==1)throw Error('Unknown report content boundary');
  html=html.replace(end,'return applyPakkomOrdersWithCommissionV2(html);$1');
- // The refresh button must resolve the lightweight page instead of expecting an inline payload.
  const refresh=/const response=await fetch\(url,[\s\S]*?const next=JSON\.parse\(match\[1\]\);validate\(next\);/g;
  if((html.match(refresh)||[]).length!==1)throw Error('Unknown report refresh loader');
  html=html.replace(refresh,'const next=await pakkomLatestReleaseV2(url);validate(next);');
