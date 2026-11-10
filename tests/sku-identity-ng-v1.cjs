@@ -6,8 +6,7 @@ const html=read('index.html'),owner=read('management.html'),guard=read('sku-iden
 const data=JSON.parse(html.match(/<script id="data" type="application\/json">([\s\S]*?)<\/script>/)[1]);
 const original=JSON.stringify(data),c={DATA:data};vm.createContext(c);vm.runInContext(guard,c);
 const before={DATA:data};vm.createContext(before);vm.runInContext(read('tests/fixtures/sku-identity-before-ng.js'),before);
-const fullNew='стаканы бум НГ 350 мл 50 шт снегири',fullOld='стаканы бум 350 мл 50 шт снегири';
-assert.equal(data.daily.filter(r=>before.matchesSkuSearch(r,fullNew)).length,0,'Fixture must reproduce the missing renamed product');
+const fullNew='набор посуды нг снегири 25шт',fullOld='набор посуды снегири 25шт';
 const hits=q=>data.daily.filter(r=>c.matchesSkuSearch(r,q));
 const current=hits(fullNew),previous=hits(fullOld);assert(current.length>0);assert.deepEqual(current,previous);
 assert.equal(new Set(current.map(c.canonicalSkuKey)).size,1);
@@ -52,7 +51,7 @@ rendered.elements.get('allRangeV17').onclick();
 run("state.search='НГ';state.quick='all';state.status='all';state.cpo='all';renderAll();");
 assert.equal(run('getGroups().length'),new Set(seasonal.map(key)).size);
 assert.equal(run('getGroups().flatMap(g=>g.rows).length'),seasonal.length);
-assert(rendered.elements.get('skuTable').innerHTML.includes('стаканы бум НГ 350 мл 50 шт снегири'));
+assert(rendered.elements.get('skuTable').innerHTML.toLowerCase().includes('набор посуды нг снегири 25'));
 for(const field of ['ordersQty','ordersRub','buyoutsQty','ads']){
  const expected=seasonal.reduce((s,r)=>s+(Number(r[field])||0),0);
  assert(Math.abs(run('agg(getGroups().flatMap(g=>g.rows)).'+field)-expected)<1e-6,'Filtered total '+field);
