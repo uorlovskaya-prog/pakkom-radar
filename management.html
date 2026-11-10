@@ -53,6 +53,50 @@ function applyPakkomOrdersWithCommissionV2(source){
  if(d.business&&'ordersRub' in d.business){d.business.ordersRub=(d.daily||[]).reduce((s,x)=>s+(Number(x.ordersRub)||0),0);if('drr' in d.business)d.business.drr=d.business.ordersRub?d.business.ads/d.business.ordersRub:null;}
  const json=JSON.stringify(d).replace(/</g,'\\u003c');return source.slice(0,a+open.length)+json+source.slice(b);
 }
+function applyPakkomConfirmedSkuMergeV1(source){
+ const open='<script id="data" type="application/json">',close='</scr'+'ipt>';
+ const a=source.indexOf(open),b=source.indexOf(close,a+open.length);if(a<0||b<0)return source;
+ const d=JSON.parse(source.slice(a+open.length,b));
+ const norm=s=>String(s??'').normalize('NFKC').toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ').trim();
+ const aliases=new Map([
+  ['набор посуды нг 12',['2018713181','набор посуды нг 12 шт']],['набор посуды нг 12 шт',['2018713181','набор посуды нг 12 шт']],
+  ['набор посуды нг 25',['2018713182','набор посуды нг 25 шт']],['набор посуды нг 25 шт',['2018713182','набор посуды нг 25 шт']],
+  ['набор посуды нг 50',['2018713183','набор посуды нг 50 шт']],['набор посуды нг 50 шт',['2018713183','набор посуды нг 50 шт']],
+  ['набор посуды нг микс 12',['2018059203','набор посуды нг микс 12 шт']],['набор посуды нг микс 12 шт',['2018059203','набор посуды нг микс 12 шт']],
+  ['набор посуды нг микс 25',['2018059204','набор посуды нг микс 25 шт']],['набор посуды нг микс 25 шт',['2018059204','набор посуды нг микс 25 шт']],
+  ['набор посуды нг микс 50',['2018059205','набор посуды нг микс 50 шт']],['набор посуды нг микс 50 шт',['2018059205','набор посуды нг микс 50 шт']],
+  ['набор посуды нг снегири 12',['2018161952','набор посуды нг снегири 12 шт']],['набор посуды нг снегири 12 шт',['2018161952','набор посуды нг снегири 12 шт']],
+  ['набор посуды нг снегири 25',['2018161953','набор посуды нг снегири 25 шт']],['набор посуды нг снегири 25 шт',['2018161953','набор посуды нг снегири 25 шт']],
+  ['набор посуды нг снегири 50',['2018161954','набор посуды нг снегири 50 шт']],['набор посуды нг снегири 50 шт',['2018161954','набор посуды нг снегири 50 шт']],
+  ['набор посуды нг щелк 12',['2018593121','набор посуды нг щелк 12 шт']],['набор посуды нг щелк 12 шт',['2018593121','набор посуды нг щелк 12 шт']],
+  ['набор посуды нг щелк 25',['2018593122','набор посуды нг щелк 25 шт']],['набор посуды нг щелк 25 шт',['2018593122','набор посуды нг щелк 25 шт']],
+  ['набор посуды нг щелк 50',['2018593123','набор посуды нг щелк 50 шт']],['набор посуды нг щелк 50 шт',['2018593123','набор посуды нг щелк 50 шт']]
+ ]);
+ const namesById=new Map([...aliases.values()].map(([id,name])=>[id,name]));
+ const sumFields=['ordersQty','ordersRub','ordersNetRub','buyoutsQty','revenue','wbRealized','payout','ads','cost','packing','vat','profit'];
+ const rows=new Map(),out=[];
+ for(const row of d.daily||[]){
+  const r={...row},id0=String(r.nmId||'');
+  const hit=aliases.get(norm(r.sku))||(namesById.has(id0)?[id0,namesById.get(id0)]:null);
+  if(hit){r.nmId=hit[0];r.skuKey='NMID:'+hit[0];r.sku=hit[1];}
+  const key=r.iso+'|'+(r.nmId?'NMID:'+r.nmId:(r.skuKey||'NAME:'+norm(r.sku)));
+  if(!rows.has(key)){rows.set(key,r);out.push(r);continue;}
+  const base=rows.get(key);
+  for(const field of sumFields)base[field]=(Number(base[field])||0)+(Number(r[field])||0);
+  if(base.cpoStd==null&&r.cpoStd!=null)base.cpoStd=r.cpoStd;
+  if(base.cpoMax==null&&r.cpoMax!=null)base.cpoMax=r.cpoMax;
+  if(!base.category&&r.category)base.category=r.category;
+  if(!base.subcategory&&r.subcategory)base.subcategory=r.subcategory;
+ }
+ for(const r of out){
+  r.drr=(Number(r.ordersRub)||0)?(Number(r.ads)||0)/(Number(r.ordersRub)||0):null;
+  r.cpo=(Number(r.ordersQty)||0)?(Number(r.ads)||0)/(Number(r.ordersQty)||0):((Number(r.ads)||0)>0?null:0);
+  r.roi=(Number(r.cost)||0)?(Number(r.profit)||0)/(Number(r.cost)||0):null;
+  r.profitPerBuyout=(Number(r.buyoutsQty)||0)?(Number(r.profit)||0)/(Number(r.buyoutsQty)||0):null;
+ }
+ d.daily=out;
+ const json=JSON.stringify(d).replace(/</g,'\\u003c');return source.slice(0,a+open.length)+json+source.slice(b);
+}
 (async()=>{
  const config=JSON.parse(document.getElementById('pakkom-management-loader').textContent);
  const pageUrl=new URL(document.baseURI);pageUrl.hash='';
@@ -70,14 +114,14 @@ function applyPakkomOrdersWithCommissionV2(source){
  html=html.slice(0,block.start)+JSON.stringify(release).replace(/</g,'\\u003c')+html.slice(block.end);
  const marker='/* PAKKOM_MANAGEMENT_ACCESS_V10:';
  if(html.split(marker).length!==2)throw Error('Unknown access loader');
- const patch=[pakkomReleaseBlockV2,pakkomMergeReleaseV2,pakkomReadSourcesV2,pakkomLatestReleaseV2,applyPakkomOrdersWithCommissionV2].map(fn=>fn.toString()).join('\n');
+ const patch=[pakkomReleaseBlockV2,pakkomMergeReleaseV2,pakkomReadSourcesV2,pakkomLatestReleaseV2,applyPakkomOrdersWithCommissionV2,applyPakkomConfirmedSkuMergeV1].map(fn=>fn.toString()).join('\n');
  html=html.replace(marker,()=>patch+'\n'+marker);
  const early='if(!r.basePayload)return html;';
  if(html.split(early).length!==2)throw Error('Unknown report content entry');
- html=html.replace(early,'if(!r.basePayload)return applyPakkomOrdersWithCommissionV2(html);');
+ html=html.replace(early,'if(!r.basePayload)return applyPakkomOrdersWithCommissionV2(applyPakkomConfirmedSkuMergeV1(html));');
  const end=/return html;(\s*\}\s*function\s+display\s*\()/g;
  if((html.match(end)||[]).length!==1)throw Error('Unknown report content boundary');
- html=html.replace(end,'return applyPakkomOrdersWithCommissionV2(html);$1');
+ html=html.replace(end,'return applyPakkomOrdersWithCommissionV2(applyPakkomConfirmedSkuMergeV1(html));$1');
  const refresh=/const response=await fetch\(url,[\s\S]*?const next=JSON\.parse\(match\[1\]\);validate\(next\);/g;
  if((html.match(refresh)||[]).length!==1)throw Error('Unknown report refresh loader');
  html=html.replace(refresh,'const next=await pakkomLatestReleaseV2(url);validate(next);');
