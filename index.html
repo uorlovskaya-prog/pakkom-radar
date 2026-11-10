@@ -1,17 +1,12 @@
 <!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Пакком — SKU Radar</title><style>body{margin:0;background:#08101c;color:#e7eef8;font:14px Arial,sans-serif;display:grid;place-items:center;min-height:100vh}.s{opacity:.8}</style></head><body><div class="s">Загружаю актуальный Radar…</div><script>
-async function pakkomGunzipB64V1(text){
- const bytes=Uint8Array.from(atob(text.trim()),c=>c.charCodeAt(0));
- const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
- return JSON.parse(await new Response(stream).text());
-}
 (async()=>{
  const [baseResp,up08Resp,up09Resp]=await Promise.all([
   fetch('index-base-20261105.html',{cache:'no-store'}),
   fetch('data/radar-update-20261108.json',{cache:'no-store'}),
-  fetch('data/radar-update-20261109.json.gz.b64',{cache:'no-store'})
+  fetch('data/radar-update-20261109.json',{cache:'no-store'})
  ]);
  if(!baseResp.ok||!up08Resp.ok||!up09Resp.ok)throw Error('load');
- let html=await baseResp.text(),up08=await up08Resp.json(),up09=await pakkomGunzipB64V1(await up09Resp.text());
+ let html=await baseResp.text(),up08=await up08Resp.json(),up09=await up09Resp.json();
  const open='<script id="data" type="application/json">',close='</scr'+'ipt>';
  const a=html.indexOf(open),b=html.indexOf(close,a+open.length);if(a<0||b<0)throw Error('data');
  const d=JSON.parse(html.slice(a+open.length,b));
