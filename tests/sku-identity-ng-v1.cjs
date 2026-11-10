@@ -44,7 +44,9 @@ assert.equal(JSON.stringify(data),original,'Identity/search must not mutate sour
 // Exercise the actual search box/render functions, including filtered headline totals.
 const fixtureSource=read('tests/signals-ui-v11.cjs').split('const output={};')[0];
 const makeFixture=new Function('require','process',fixtureSource+'\nreturn fixture;')(require,process);
-const rendered=makeFixture(html),run=code=>vm.runInContext(code,rendered.c);
+const embeddedGuard=html.match(/\/\* PAKKOM_SKU_IDENTITY_GUARD_V4_BEGIN[\s\S]*?\/\* PAKKOM_SKU_IDENTITY_GUARD_V4_END \*\//)[0];
+const uiHtml=html.replace(embeddedGuard,guard);
+const rendered=makeFixture(uiHtml),run=code=>vm.runInContext(code,rendered.c);
 rendered.elements.get('allRangeV17').onclick();
 run("state.search='НГ';state.quick='all';state.status='all';state.cpo='all';renderAll();");
 assert.equal(run('getGroups().length'),new Set(seasonal.map(key)).size);
