@@ -34,8 +34,7 @@ function normalizeSkuName(value){
 }
 function hasNewYearMarker(value){return /(^|\s)нг(?=\s|$)/.test(normalizeSkuSearch(value))}
 function isKnownNewYearName(value){
- const name=normalizeSkuSearch(value);
- return hasNewYearMarker(name)||/^(стаканы бум|тарелки|набор посуды)\s/.test(name)&&/(^|\s)(снегири|щелкунчик|щелк|шары)(?=\s|$)/.test(name);
+ return hasNewYearMarker(value);
 }
 function newYearDisplayName(value){
  const name=String(value??'').trim();
