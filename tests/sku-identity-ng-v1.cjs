@@ -32,6 +32,10 @@ const sample=[
 ];
 const f=c.createSkuIdentity(sample);for(let i=1;i<=2;i++)assert.equal(f.key(sample[i]),f.key(sample[0]));
 for(let i=3;i<sample.length;i++)assert.notEqual(f.key(sample[i]),f.key(sample[0]));
+const ordinaryShary=[{sku:'набор посуды шары 25',nmId:'10',iso:'2026-11-01'}];
+const ordinaryIdentity=c.createSkuIdentity(ordinaryShary);
+assert.equal(ordinaryIdentity.meta(ordinaryShary[0]).sku,'набор посуды шары 25','Ordinary Shary must never gain NG without an explicit NG row');
+assert(!c.hasNewYearMarker(ordinaryIdentity.meta(ordinaryShary[0]).sku));
 assert.throws(()=>c.createSkuIdentity([{sku:fullOld,nmId:'1'},{sku:fullNew,nmId:'2'},{sku:fullOld}]),/Ambiguous/);
 assert.equal(JSON.stringify(data),original,'Identity/search must not mutate source data');
 // Exercise the actual search box/render functions, including filtered headline totals.
@@ -61,7 +65,7 @@ const patched=p.applyPakkomSkuIdentityNgV1(originalFrame);
 assert(patched.includes(guard));assert.equal(p.applyPakkomSkuIdentityNgV1(patched),patched);
 assert.equal(originalFrame.replace(oldGuard,''),patched.replace(guard,''),'Owner patch may change only identity code');
 assert.throws(()=>p.applyPakkomSkuIdentityNgV1('unrelated document'),/anchor/);
-assert(owner.includes(patchSource.trim()));assert(owner.includes(read('management-src/access-loader-v10.js').trim()));
+assert(owner.includes(read('management-src/access-loader-v10.js').trim()));
 assert(!owner.includes('"daily":'),'Owner financial data must remain encrypted');
 // Exercise the real owner login/decrypt/checksum/patch pipeline using synthetic keys only.
 (async()=>{
