@@ -36,6 +36,12 @@ const ordinaryShary=[{sku:'набор посуды шары 25',nmId:'10',iso:'2
 const ordinaryIdentity=c.createSkuIdentity(ordinaryShary);
 assert.equal(ordinaryIdentity.meta(ordinaryShary[0]).sku,'набор посуды шары 25','Ordinary Shary must never gain NG without an explicit NG row');
 assert(!c.hasNewYearMarker(ordinaryIdentity.meta(ordinaryShary[0]).sku));
+const ng25a={sku:'набор посуды нг 25',iso:'2026-11-06'};
+const ng25b={sku:'набор посуды нг 25 шт',iso:'2026-11-06'};
+const ng25=c.createSkuIdentity([ng25a,ng25b]);
+assert.equal(ng25.key(ng25a),'NMID:2018713182');
+assert.equal(ng25.key(ng25b),'NMID:2018713182');
+assert.equal(ng25.meta(ng25a).nmId,'2018713182');
 assert.throws(()=>c.createSkuIdentity([{sku:fullOld,nmId:'1'},{sku:fullNew,nmId:'2'},{sku:fullOld}]),/Ambiguous/);
 assert.equal(JSON.stringify(data),original,'Identity/search must not mutate source data');
 // Exercise the actual search box/render functions, including filtered headline totals.
