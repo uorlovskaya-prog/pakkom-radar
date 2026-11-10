@@ -64,7 +64,10 @@ async function main(){
  const d=block(radar.html,'data'),r=block(owner.html,'pakkom-sealed-release');
  const config=block(read('management.html'),'pakkom-management-loader'),base=block(read(config.base),'pakkom-sealed-release'),sealed=JSON.parse(read(config.update));
  assert.equal(d.through,r.through);assert.equal(d.daily.map(r=>r.iso).sort().at(-1),r.through.split('.').reverse().join('-'));
- assert.deepEqual(r.account,base.account);assert.deepEqual(r.basePayload,base.basePayload);assert.deepEqual(r.previousUpdates,[...(base.previousUpdates||[]),base.payload]);assert.deepEqual(r.payload,sealed.payload);
+ assert.deepEqual(r.account,base.account);assert.deepEqual(r.basePayload,base.basePayload);
+ const expectedPrevious=[...(base.previousUpdates||[]),base.payload,...(Array.isArray(sealed.previousPayloads)?sealed.previousPayloads:[])];
+ assert.deepEqual(r.previousUpdates,expectedPrevious);assert.deepEqual(r.payload,sealed.payload);
+ assert.equal(new Set([...(r.previousUpdates||[]),r.payload].map(p=>p.sha256)).size,(r.previousUpdates||[]).length+1,'Duplicate encrypted update in chain');
  assert(!owner.html.includes('"daily":'),'Plain private financial data in owner page');
  for(const marker of ['PAKKOM_MANAGEMENT_ACCESS_V10','PAKKOM_MANAGEMENT_FILTERS_V9','PAKKOM_REPORT_DATA_UPDATE_V1'])assert(owner.html.includes(marker),marker);
  assert(radar.html.includes('PAKKOM_SKU_IDENTITY_GUARD_V4'));
@@ -81,13 +84,13 @@ async function main(){
  assert.equal(JSON.stringify(d),originalData,'Identity changed source data');
 
  for(const x of d.daily)if(Number.isFinite(x.ordersNetRub)){assert(Math.abs(x.ordersRub-x.ordersNetRub/.70)<1e-6);if(x.ordersRub)assert(Math.abs(x.drr-(Number(x.ads)||0)/x.ordersRub)<1e-9);}
- for(const [iso,qty,net,buyouts,ads] of [['2026-11-06',3539,810423.41,3161,68674],['2026-11-07',3460,806318.67,2956,74198],['2026-11-08',3649,861014.09,3185,73643]]){
+ for(const [iso,qty,net,buyouts,ads] of [['2026-11-06',3539,810423.41,3161,68674],['2026-11-07',3460,806318.67,2956,74198],['2026-11-08',3649,861014.09,3185,73643],['2026-11-09',4058,952259.42,3494,74440]]){
   const rows=d.daily.filter(r=>r.iso===iso),sum=k=>rows.reduce((s,r)=>s+(Number(r[k])||0),0);
   for(const [k,v] of Object.entries({ordersQty:qty,ordersNetRub:net,ordersRub:net/.7,buyoutsQty:buyouts,ads}))assert(Math.abs(sum(k)-v)<1e-5,iso+' '+k);
  }
  const latest=await owner.context.pakkomLatestReleaseV2(new URL(origin+'management.html'));
  assert.deepEqual(JSON.parse(JSON.stringify(latest)),r);
- console.log('PASS: both lightweight loaders execute; reporting date '+r.through+'; sealed account/base/history unchanged; Radar 06-08 November controls match');
+ console.log('PASS: both lightweight loaders execute; reporting date '+r.through+'; sealed account/base/history unchanged; Radar 06-09 November controls match');
  await cryptoRegression(owner);
  if(process.argv.includes('--live')){
   // Wait for this exact checked commit to reach Pages; never claim a Git commit is a deployment.
