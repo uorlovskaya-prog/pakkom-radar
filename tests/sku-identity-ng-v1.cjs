@@ -71,6 +71,10 @@ assert.equal(originalFrame.replace(oldGuard,''),patched.replace(guard,''),'Owner
 assert.throws(()=>p.applyPakkomSkuIdentityNgV1('unrelated document'),/anchor/);
 assert(owner.includes(read('management-src/access-loader-v10.js').trim()));
 assert(!owner.includes('"daily":'),'Owner financial data must remain encrypted');
+const ownerIdentityBegin='/* PAKKOM_SKU_IDENTITY_NG_V1:',ownerIdentityEnd="if(typeof module!=='undefined'&&module.exports)module.exports={applyPakkomSkuIdentityNgV1};";
+const ownerIa=owner.indexOf(ownerIdentityBegin),ownerIb=owner.indexOf(ownerIdentityEnd,ownerIa+ownerIdentityBegin.length);
+assert(ownerIa>=0&&ownerIb>=ownerIa,'Owner base identity module anchor');
+const ownerRuntime=owner.slice(0,ownerIa)+patchSource.trim()+owner.slice(ownerIb+ownerIdentityEnd.length);
 // Exercise the real owner login/decrypt/checksum/patch pipeline using synthetic keys only.
 (async()=>{
  const crypto=webcrypto,enc=new TextEncoder(),sub=crypto.subtle,b64=a=>Buffer.from(a).toString('base64'),random=n=>crypto.getRandomValues(new Uint8Array(n));
@@ -85,7 +89,7 @@ assert(!owner.includes('"daily":'),'Owner financial data must remain encrypted')
  el('pakkom-sealed-release').textContent=JSON.stringify(release);
  const context={console,crypto,TextEncoder,TextDecoder,Uint8Array,ArrayBuffer,Blob,Response,DecompressionStream,atob,setTimeout,clearTimeout,URL,document:{getElementById:el},window:{addEventListener(){}},indexedDB:{open(){throw Error('Synthetic storage disabled')}},location:{protocol:'https:',href:'https://example.test/management.html'}};
  vm.createContext(context);
- for(const m of owner.matchAll(/<script>([\s\S]*?)<\/script>/g))vm.runInContext(m[1],context);
+ for(const m of ownerRuntime.matchAll(/<script>([\s\S]*?)<\/script>/g))vm.runInContext(m[1],context);
  await new Promise(resolve=>setTimeout(resolve,10));
  el('password').value='wrong';await el('login').onsubmit({preventDefault(){}});assert(!el('board').srcdoc,'Wrong password must remain blocked');
  el('password').value=secret;await el('login').onsubmit({preventDefault(){}});
