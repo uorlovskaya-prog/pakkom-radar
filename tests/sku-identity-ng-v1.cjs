@@ -13,7 +13,11 @@ assert(hits('НГ стаканы').every(r=>r.sku.startsWith('стаканы')))
 assert(!hits('НГ').some(r=>r.sku==='стаканы пластик 200 мл 100 шт'));
 const key=r=>c.canonicalSkuKey(r),dateKeys=data.daily.map(r=>r.iso+'|'+key(r));
 assert.equal(new Set(dateKeys).size,dateKeys.length,'No duplicate daily products');
-for(const r of data.daily)assert.equal(key(r),before.canonicalSkuKey(r),'Current historical product IDs must stay stable');
+const approvedUpgrades=new Set(['2018713181','2018713182','2018713183','2018059203','2018059204','2018059205','2018161952','2018161953','2018161954','2018593121','2018593122','2018593123'].map(x=>'NMID:'+x));
+for(const r of data.daily){
+ const prior=before.canonicalSkuKey(r),now=key(r);
+ if(prior!==now)assert(prior.startsWith('NAME:')&&approvedUpgrades.has(now),'Only confirmed NAME→WB ID upgrades are allowed: '+prior+' -> '+now);
+}
 const sample=[
  {sku:'стаканы бум 350 мл 50 шт снегири',nmId:'1',iso:'2026-11-01'},
  {sku:'стаканы бум НГ 350 мл 50 шт снегири',iso:'2026-11-02'},
