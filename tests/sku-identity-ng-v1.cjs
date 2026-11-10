@@ -64,7 +64,7 @@ const oldGuard=read('tests/fixtures/sku-identity-before-ng.js').trim();
 const sortingFixture=read('tests/fixtures/management-sort-before.html');
 const ownerSorting=sortingFixture.match(/<select id="fSort">[\s\S]*?<\/select>/)[0]+
  '<script>'+sortingFixture.slice(sortingFixture.indexOf('function renderSku(){'),sortingFixture.indexOf('function syncSort(){'))+'</script>';
-const originalFrame=html.replace(guard,oldGuard).replace('</head>','<!-- PAKKOM_MANAGEMENT_FILTERS_V9 -->\n</head>').replace('</body>',ownerSorting+'\n</body>');
+const originalFrame=html.replace(embeddedGuard,oldGuard).replace('</head>','<!-- PAKKOM_MANAGEMENT_FILTERS_V9 -->\n</head>').replace('</body>',ownerSorting+'\n</body>');
 const patched=p.applyPakkomSkuIdentityNgV1(originalFrame);
 assert(patched.includes(guard));assert.equal(p.applyPakkomSkuIdentityNgV1(patched),patched);
 assert.equal(originalFrame.replace(oldGuard,''),patched.replace(guard,''),'Owner patch may change only identity code');
