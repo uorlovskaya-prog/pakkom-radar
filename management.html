@@ -56,8 +56,16 @@ function applyPakkomOrdersWithCommissionV2(source){
 (async()=>{
  const config=JSON.parse(document.getElementById('pakkom-management-loader').textContent);
  const pageUrl=new URL(document.baseURI);pageUrl.hash='';
- const sources=await pakkomReadSourcesV2(config,pageUrl);
+ const [sources,identityResp]=await Promise.all([
+  pakkomReadSourcesV2(config,pageUrl),
+  fetch('management-src/sku-identity-ng-v1.js',{cache:'no-store',credentials:'omit',redirect:'error'})
+ ]);
+ if(!identityResp.ok)throw Error('Identity module unavailable');
  let html=sources.base;
+ const identity=(await identityResp.text()).trim(),identityBegin='/* PAKKOM_SKU_IDENTITY_NG_V1:',identityEnd="if(typeof module!=='undefined'&&module.exports)module.exports={applyPakkomSkuIdentityNgV1};";
+ const ia=html.indexOf(identityBegin),ib=html.indexOf(identityEnd,ia+identityBegin.length);
+ if(ia<0||ib<ia)throw Error('Identity module anchor');
+ html=html.slice(0,ia)+identity+html.slice(ib+identityEnd.length);
  const block=pakkomReleaseBlockV2(html),release=pakkomMergeReleaseV2(html,sources.sealeds);
  html=html.slice(0,block.start)+JSON.stringify(release).replace(/</g,'\\u003c')+html.slice(block.end);
  const marker='/* PAKKOM_MANAGEMENT_ACCESS_V10:';
