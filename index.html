@@ -1,13 +1,14 @@
 <!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Пакком — SKU Radar</title><style>body{margin:0;background:#08101c;color:#e7eef8;font:14px Arial,sans-serif;display:grid;place-items:center;min-height:100vh}.s{opacity:.8}</style></head><body><div class="s">Загружаю актуальный Radar…</div><script>
 (async()=>{
- const [baseResp,up08Resp,up09Resp,guardResp]=await Promise.all([
+ const [baseResp,up08Resp,up09Resp,up10Resp,guardResp]=await Promise.all([
   fetch('index-base-20261105.html',{cache:'no-store'}),
   fetch('data/radar-update-20261108.json',{cache:'no-store'}),
   fetch('data/radar-update-20261109.json',{cache:'no-store'}),
+  fetch('data/radar-update-20261110.json',{cache:'no-store'}),
   fetch('sku-identity-v4.js',{cache:'no-store'})
  ]);
- if(!baseResp.ok||!up08Resp.ok||!up09Resp.ok||!guardResp.ok)throw Error('load');
- let html=await baseResp.text(),up08=await up08Resp.json(),up09=await up09Resp.json();
+ if(!baseResp.ok||!up08Resp.ok||!up09Resp.ok||!up10Resp.ok||!guardResp.ok)throw Error('load');
+ let html=await baseResp.text(),up08=await up08Resp.json(),up09=await up09Resp.json(),up10=await up10Resp.json();
  const guard=(await guardResp.text()).trim(),guardBegin='/* PAKKOM_SKU_IDENTITY_GUARD_V4_BEGIN',guardEnd='/* PAKKOM_SKU_IDENTITY_GUARD_V4_END */';
  const ga=html.indexOf(guardBegin),gb=html.indexOf(guardEnd,ga+guardBegin.length);
  if(ga<0||gb<ga)throw Error('identity');
@@ -15,14 +16,14 @@
  const open='<script id="data" type="application/json">',close='</scr'+'ipt>';
  const a=html.indexOf(open),b=html.indexOf(close,a+open.length);if(a<0||b<0)throw Error('data');
  const d=JSON.parse(html.slice(a+open.length,b));
- d.daily=(d.daily||[]).filter(r=>r.iso<'2026-11-06').concat(up08.rows||[],up09.rows||[]);
+ d.daily=(d.daily||[]).filter(r=>r.iso<'2026-11-06').concat(up08.rows||[],up09.rows||[],up10.rows||[]);
  for(const r of d.daily||[]){if(Number.isFinite(r.ordersNetRub)){r.ordersRub=r.ordersNetRub/0.70;r.drr=r.ordersRub?(Number(r.ads)||0)/r.ordersRub:null;}}
- d.through=up09.through;
+ d.through=up10.through;
  d.weeks=(d.weeks||[]).filter(w=>!['2026-11-02','2026-11-09'].includes(w.key));
  d.weeks.push({key:'2026-11-02',start:'2026-11-02',end:'2026-11-08',label:'02.11–08.11'});
- d.weeks.push({key:'2026-11-09',start:'2026-11-09',end:'2026-11-09',label:'09.11–09.11'});
+ d.weeks.push({key:'2026-11-09',start:'2026-11-09',end:'2026-11-10',label:'09.11–10.11'});
  d.ordersAmountBasis='with_commission';d.ordersSourceBasis='after_commission';d.ordersCommissionRate=0.3;
- d.note='Данные по 09.11.2026. Источник report хранит сумму заказов без комиссии WB; сумма с комиссией восстановлена как ordersNetRub / 0,70.';
+ d.note='Данные по 10.11.2026. Источник report хранит сумму заказов без комиссии WB; сумма с комиссией восстановлена как ordersNetRub / 0,70.';
  const json=JSON.stringify(d).replace(/</g,'\\u003c');
  html=html.slice(0,a+open.length)+json+html.slice(b);
  document.open();document.write(html);document.close();
