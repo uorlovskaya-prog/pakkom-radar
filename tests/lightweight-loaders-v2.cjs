@@ -35,7 +35,9 @@ async function cryptoRegression(owner){
  const embedded=r=>'<script id="pakkom-sealed-release" type="application/json">'+JSON.stringify(r)+'</script>';
  let external={through:'08.11.2026',payload:await seal(JSON.stringify(update('05','08',['06','07','08'])))};
  const config=block(read('management.html'),'pakkom-management-loader');
- const mockFiles=()=>({'management.html':read('management.html'),[config.base]:embedded(baseRelease),[config.update]:JSON.stringify(external)});
+ const syntheticUpdate='data/synthetic-management-update.json';
+ const syntheticManagement=read('management.html').replace(JSON.stringify(config),JSON.stringify({base:config.base,update:syntheticUpdate}));
+ const mockFiles=()=>({'management.html':syntheticManagement,[config.base]:embedded(baseRelease),[syntheticUpdate]:JSON.stringify(external)});
  const shared=storage();
  async function context(){
   const elements=new Map(),el=id=>{if(!elements.has(id))elements.set(id,{textContent:'',value:'',checked:true,hidden:false,disabled:false,setAttribute(){},removeAttribute(){},focus(){}});return elements.get(id);};
@@ -62,11 +64,12 @@ async function cryptoRegression(owner){
 async function main(){
  const radar=await assemble('index.html'),owner=await assemble('management.html');
  const d=block(radar.html,'data'),r=block(owner.html,'pakkom-sealed-release');
- const config=block(read('management.html'),'pakkom-management-loader'),base=block(read(config.base),'pakkom-sealed-release'),sealed=JSON.parse(read(config.update));
+ const config=block(read('management.html'),'pakkom-management-loader'),base=block(read(config.base),'pakkom-sealed-release');
+ const updatePaths=Array.isArray(config.updates)?config.updates:[config.update],sealeds=updatePaths.map(p=>JSON.parse(read(p)));
  assert.equal(d.through,r.through);assert.equal(d.daily.map(r=>r.iso).sort().at(-1),r.through.split('.').reverse().join('-'));
  assert.deepEqual(r.account,base.account);assert.deepEqual(r.basePayload,base.basePayload);
- const expectedPrevious=[...(base.previousUpdates||[]),base.payload,...(Array.isArray(sealed.previousPayloads)?sealed.previousPayloads:[])];
- assert.deepEqual(r.previousUpdates,expectedPrevious);assert.deepEqual(r.payload,sealed.payload);
+ const expectedRelease=owner.context.pakkomMergeReleaseV2(read(config.base),sealeds);
+ assert.deepEqual(JSON.parse(JSON.stringify(r)),JSON.parse(JSON.stringify(expectedRelease)));
  assert.equal(new Set([...(r.previousUpdates||[]),r.payload].map(p=>p.sha256)).size,(r.previousUpdates||[]).length+1,'Duplicate encrypted update in chain');
  assert(!owner.html.includes('"daily":'),'Plain private financial data in owner page');
  for(const marker of ['PAKKOM_MANAGEMENT_ACCESS_V10','PAKKOM_MANAGEMENT_FILTERS_V9','PAKKOM_REPORT_DATA_UPDATE_V1'])assert(owner.html.includes(marker),marker);
@@ -84,13 +87,13 @@ async function main(){
  assert.equal(JSON.stringify(d),originalData,'Identity changed source data');
 
  for(const x of d.daily)if(Number.isFinite(x.ordersNetRub)){assert(Math.abs(x.ordersRub-x.ordersNetRub/.70)<1e-6);if(x.ordersRub)assert(Math.abs(x.drr-(Number(x.ads)||0)/x.ordersRub)<1e-9);}
- for(const [iso,qty,net,buyouts,ads] of [['2026-11-06',3539,810423.41,3161,68674],['2026-11-07',3460,806318.67,2956,74198],['2026-11-08',3649,861014.09,3185,73643],['2026-11-09',4058,952259.42,3494,74440],['2026-11-10',3693,863931.46,3294,80439]]){
+ for(const [iso,qty,net,buyouts,ads] of [['2026-11-06',3539,810423.41,3161,68674],['2026-11-07',3460,806318.67,2956,74198],['2026-11-08',3649,861014.09,3185,73643],['2026-11-09',4058,952259.42,3494,74440],['2026-11-10',3693,863931.46,3294,80439],['2026-11-11',3764,865904.07,3347,83061]]){
   const rows=d.daily.filter(r=>r.iso===iso),sum=k=>rows.reduce((s,r)=>s+(Number(r[k])||0),0);
   for(const [k,v] of Object.entries({ordersQty:qty,ordersNetRub:net,ordersRub:net/.7,buyoutsQty:buyouts,ads}))assert(Math.abs(sum(k)-v)<1e-5,iso+' '+k);
  }
  const latest=await owner.context.pakkomLatestReleaseV2(new URL(origin+'management.html'));
  assert.deepEqual(JSON.parse(JSON.stringify(latest)),r);
- console.log('PASS: both lightweight loaders execute; reporting date '+r.through+'; sealed account/base/history unchanged; Radar 06-10 November controls match');
+ console.log('PASS: both lightweight loaders execute; reporting date '+r.through+'; sealed account/base/history unchanged; Radar 06-11 November controls match');
  await cryptoRegression(owner);
  if(process.argv.includes('--live')){
   // Wait for this exact checked commit to reach Pages; never claim a Git commit is a deployment.
@@ -98,7 +101,7 @@ async function main(){
    ...read('index.html').matchAll(/fetch\(['"]([^'"]+)['"]/g),
    ...read('management.html').matchAll(/fetch\(['"]([^'"]+)['"]/g)
   ].map(m=>m[1]);
-  const files=[...new Set(['index.html','management.html',...dependencies,config.base,config.update])];
+  const files=[...new Set(['index.html','management.html',...dependencies,config.base,...updatePaths])];
   let published=null,last='';
   for(let attempt=0;attempt<24;attempt++){
    try{
