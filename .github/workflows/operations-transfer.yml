@@ -1,0 +1,27 @@
+name: Prepare checked Pakkom operations transfer
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/operations-transfer.yml]
+permissions:
+  contents: read
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read staged blob for byte verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const url='https://api.github.com/repos/uorlovskaya-prog/pakkom-radar/git/blobs/2c947dcdc4a888fb6522fa445080dd895e6824e5';
+          const r=await fetch(url,{headers:{Authorization:'Bearer '+process.env.GH_TOKEN,Accept:'application/vnd.github+json'}});
+          if(!r.ok)throw Error('Read failed '+r.status);
+          const d=await r.json();fs.writeFileSync('staged-public.json',Buffer.from(d.content,'base64'));
+          JS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pakkom-byte-verification
+          path: staged-public.json
+          retention-days: 1
