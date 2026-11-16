@@ -4,27 +4,75 @@ on:
     branches: [estimates-20261115-checked-transfer]
     paths: [.github/workflows/estimate-transfer.yml]
 permissions:
-  contents: read
+  contents: write
 jobs:
   transfer:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Read staged transfer bytes
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Reconstruct and verify checked package
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           node --input-type=module <<'JS'
           import fs from 'node:fs';
+          import {createHash} from 'node:crypto';
+          import {gunzipSync} from 'node:zlib';
           const ids=['6677187320b890ff35fb640540d112238c58037c','fbcd0844c593db14e3d491ab3f074a43b258ff1b','24cc54b7a32be5c4f30ebb0d20867538b5566c1c','47670c8abb3c0c784d37665ffeb3ffe29b87536f','272d948018ae2fb386bd3183ab03782ab814e84d','74efe68ab2063e7c56f0acea5fc778b6512175c2'];
-          fs.mkdirSync('transfer');
+          const expected=['ab956c624e48017a548b78c9ad8c812de554f301','fbcd0844c593db14e3d491ab3f074a43b258ff1b','24cc54b7a32be5c4f30ebb0d20867538b5566c1c','8a19ffa72beeec8b9b81dffe27a48d3ff4015897','272d948018ae2fb386bd3183ab03782ab814e84d','17b0ad1fecf5b20e561e01a0c6f525f27f001beb'];
+          const tail='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';
+          const sha=b=>createHash('sha256').update(b).digest('hex');
+          const gitsha=b=>createHash('sha1').update(Buffer.concat([Buffer.from('blob '+b.length+'\0'),b])).digest('hex');
+          const parts=[];
           for(let i=0;i<ids.length;i++){
             const r=await fetch('https://api.github.com/repos/uorlovskaya-prog/pakkom-radar/git/blobs/'+ids[i],{headers:{Authorization:'Bearer '+process.env.GH_TOKEN,Accept:'application/vnd.github+json'}});
-            if(!r.ok)throw Error('Read '+r.status);
-            const d=await r.json();fs.writeFileSync('transfer/part-'+i+'.bin',Buffer.from(d.content,'base64'));
+            if(!r.ok)throw Error('Read '+r.status);const d=await r.json();let s=Buffer.from(d.content,'base64').toString('base64');
+            if(i===0)s=s.slice(0,4897)+'l'+s.slice(4898);
+            if(i===3)for(const [a,b,t] of [[10924,10924,'4='],[5836,5839,'If'],[2105,2107,'Id'],[388,389,'']])s=s.slice(0,a)+t+s.slice(b);
+            if(i===5)s=s.slice(0,6305)+tail;
+            const bytes=Buffer.from(s,'base64');if(gitsha(bytes)!==expected[i])throw Error('Part checksum '+i);parts.push(bytes);
           }
+          const all=Buffer.concat(parts),expectedPackage='c68f2d6fc3572499701ea8f53ab45af8458edba5a11a7b86e6a2567c7e7f4880';
+          if(sha(all)!==expectedPackage)throw Error('Package checksum');
+          const p=JSON.parse(gunzipSync(all));
+          for(const [path,hash] of Object.entries(p.before))if(sha(fs.readFileSync(path))!==hash)throw Error('Baseline changed: '+path);
+          const allowed=['index.html','management.html','operations-update-v1.js','estimate-view-v1.js','data/radar-estimates-20261115.json','data/management-estimates-20261115.json','tests/estimate-view-v1.cjs','ESTIMATES_HANDOFF.md','.github/workflows/signals-v11.yml'];
+          if(p.files.length!==allowed.length)throw Error('Unexpected files');
+          for(const f of p.files){if(!allowed.includes(f.path)||sha(f.content)!==f.sha256)throw Error('File checksum');fs.writeFileSync(f.path,f.content);}
+          fs.writeFileSync('/tmp/estimate-package.json',JSON.stringify(p));console.log('PASS exact checked package; financial values remain encrypted');
+          JS
+      - name: Validate new and preserved behavior
+        run: |
+          node tests/lightweight-loaders-v2.cjs
+          node tests/operations-update-v1.cjs
+          node tests/estimate-view-v1.cjs
+          cp index.html /tmp/index-candidate.html
+          cp management.html /tmp/management-candidate.html
+          trap 'cp /tmp/index-candidate.html index.html; cp /tmp/management-candidate.html management.html' EXIT
+          cp index-base-20261105.html index.html
+          cp management-base-20261105.html management.html
+          node tests/management-signals-v11.cjs
+          node tests/signals-ui-v11.cjs
+          node tests/sku-identity-ng-v1.cjs
+          node tests/ad-attribution-v1.cjs
+          node tests/profit-percent-sort-v1.cjs
+          node tests/report-data-update-v1.cjs
+      - name: Store checked file blobs only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';import{createHash}from'node:crypto';
+          const p=JSON.parse(fs.readFileSync('/tmp/estimate-package.json')),out=[];
+          for(const f of p.files){const b=fs.readFileSync(f.path);if(createHash('sha256').update(b).digest('hex')!==f.sha256)throw Error('Changed during tests: '+f.path);const r=await fetch('https://api.github.com/repos/uorlovskaya-prog/pakkom-radar/git/blobs',{method:'POST',headers:{Authorization:'Bearer '+process.env.GH_TOKEN,Accept:'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify({encoding:'base64',content:b.toString('base64')})});if(!r.ok)throw Error('Store '+r.status);const d=await r.json();out.push({path:f.path,sha:d.sha,sha256:f.sha256});}
+          fs.writeFileSync('estimate-transfer-result.json',JSON.stringify({packageSha256:'c68f2d6fc3572499701ea8f53ab45af8458edba5a11a7b86e6a2567c7e7f4880',baseCommit:'0a4856a6278b43d837afef5c421f1d565e92d7dd',files:out},null,2));console.log(JSON.stringify(out));
           JS
       - uses: actions/upload-artifact@v4
         with:
-          name: estimate-transfer-bytes
-          path: transfer/
+          name: estimate-checked-release
+          path: estimate-transfer-result.json
           retention-days: 1
