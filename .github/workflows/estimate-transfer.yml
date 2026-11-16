@@ -1,0 +1,30 @@
+name: Check estimate release transfer
+on:
+  push:
+    branches: [estimates-20261115-checked-transfer]
+    paths: [.github/workflows/estimate-transfer.yml]
+permissions:
+  contents: read
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read staged transfer bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const ids=['6677187320b890ff35fb640540d112238c58037c','fbcd0844c593db14e3d491ab3f074a43b258ff1b','24cc54b7a32be5c4f30ebb0d20867538b5566c1c','47670c8abb3c0c784d37665ffeb3ffe29b87536f','272d948018ae2fb386bd3183ab03782ab814e84d','74efe68ab2063e7c56f0acea5fc778b6512175c2'];
+          fs.mkdirSync('transfer');
+          for(let i=0;i<ids.length;i++){
+            const r=await fetch('https://api.github.com/repos/uorlovskaya-prog/pakkom-radar/git/blobs/'+ids[i],{headers:{Authorization:'Bearer '+process.env.GH_TOKEN,Accept:'application/vnd.github+json'}});
+            if(!r.ok)throw Error('Read '+r.status);
+            const d=await r.json();fs.writeFileSync('transfer/part-'+i+'.bin',Buffer.from(d.content,'base64'));
+          }
+          JS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: estimate-transfer-bytes
+          path: transfer/
+          retention-days: 1
