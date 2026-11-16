@@ -107,7 +107,7 @@ function pakkomFinancialAggBeforeOperationsV1(rows){`;
  function setHidden(el,on){if(!el)return;if(on){if(!el.hasAttribute('data-ops-hidden')){el.dataset.opsDisplay=el.style.display||'';el.setAttribute('data-ops-hidden','1');el.style.display='none';}}else if(el.hasAttribute('data-ops-hidden')){el.style.display=el.dataset.opsDisplay||'';el.removeAttribute('data-ops-hidden');}}
  function sync(){
   const cut=DATA.financialThrough.split('.').reverse().join('-');const partial=typeof state!=='undefined'&&state.to>cut;
-  const text=partial?'Оперативно по '+DATA.through+' · Заказы, выкупы из report, реклама и ДРР. ЧП, НДС и финансовые прогнозы за незакрытые дни не рассчитаны. Финансовая история сохранена по '+DATA.financialThrough+'.':'Финансовая история по '+DATA.financialThrough+'; оперативные данные доступны по '+DATA.through+'.';
+  const text=partial?'Оперативно по '+DATA.through+' · Заказы, выкупы из report, реклама и ДРР. Фактические ЧП и НДС за незакрытые дни не подтверждены. Оценки показаны отдельно, если доступны. Финансовая история сохранена по '+DATA.financialThrough+'.':'Финансовая история по '+DATA.financialThrough+'; оперативные данные доступны по '+DATA.through+'.';
   if(banner.textContent!==text)banner.textContent=text;
   document.querySelectorAll('[data-ops-hidden]').forEach(el=>setHidden(el,false));
   const profitFilter=document.getElementById('fProfit');if(profitFilter)profitFilter.disabled=partial;
@@ -115,12 +115,13 @@ function pakkomFinancialAggBeforeOperationsV1(rows){`;
   if(typeof state!=='undefined'&&state.profit&&state.profit!=='all'){state.profit='all';if(profitFilter)profitFilter.value='all';if(typeof renderAll==='function')renderAll();}
   document.querySelectorAll('[data-q="negative"],[data-q="scale"]').forEach(el=>setHidden(el,true));
   document.querySelectorAll('table').forEach(table=>{
+   if(table.closest('[data-pakkom-estimate]'))return;
    const tr=table.querySelector('tr'),heads=tr?[...tr.children]:[];if(!heads.some(h=>h.tagName==='TH'))return;
    const columns=heads.map((h,i)=>finance.test(h.textContent||'')?i:-1).filter(i=>i>=0);
    for(const row of table.rows||[]){if(row.closest('table')!==table||row.children.length!==heads.length)continue;for(const i of columns)setHidden(row.children[i],true);}
   });
-  document.querySelectorAll('.kpi,.sum,.metric').forEach(card=>{const label=card.querySelector('.l,.sl,.label,h3,h4');if(label&&finance.test(label.textContent||''))setHidden(card,true);});
-  document.querySelectorAll('h2,h3,h4').forEach(h=>{if(/(сценарий|финансов|экономик|прогноз)/i.test(h.textContent||'')){const card=h.closest('.box,.card,.panel');if(card)setHidden(card,true);}});
+  document.querySelectorAll('.kpi,.sum,.metric').forEach(card=>{if(card.closest('[data-pakkom-estimate]'))return;const label=card.querySelector('.l,.sl,.label,h3,h4');if(label&&finance.test(label.textContent||''))setHidden(card,true);});
+  document.querySelectorAll('h2,h3,h4').forEach(h=>{if(h.closest('[data-pakkom-estimate]'))return;if(/(сценарий|финансов|экономик|прогноз)/i.test(h.textContent||'')){const card=h.closest('.box,.card,.panel');if(card)setHidden(card,true);}});
   const f=document.getElementById('fProfit');if(f){f.disabled=true;f.title='Фильтр ЧП доступен только для закрытого финансового периода';}
  }
  let pending=false;const schedule=()=>{if(pending)return;pending=true;Promise.resolve().then(()=>{pending=false;sync();});};

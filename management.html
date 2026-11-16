@@ -1,4 +1,4 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Пакком — Управленческий дашборд</title><style>body{margin:0;background:#08101c;color:#e7eef8;font:14px Arial,sans-serif;display:grid;place-items:center;min-height:100vh}.s{opacity:.8}</style></head><body><div class="s">Загружаю управленческий дашборд…</div><script id="pakkom-management-loader" type="application/json">{"base":"management-base-20261105.html","updates":["data/management-update-20261110-chain.json","data/management-update-20261111.json","data/management-operations-20261115.json"]}</script>
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Пакком — Управленческий дашборд</title><style>body{margin:0;background:#08101c;color:#e7eef8;font:14px Arial,sans-serif;display:grid;place-items:center;min-height:100vh}.s{opacity:.8}</style></head><body><div class="s">Загружаю управленческий дашборд…</div><script id="pakkom-management-loader" type="application/json">{"base":"management-base-20261105.html","updates":["data/management-update-20261110-chain.json","data/management-update-20261111.json","data/management-operations-20261115.json","data/management-estimates-20261115.json"]}</script>
 <script>
 // PAKKOM_MANAGEMENT_LIGHTWEIGHT_V3: preserve sealed base and ordered update chain.
 function pakkomReleaseBlockV2(html){
@@ -100,13 +100,14 @@ function applyPakkomConfirmedSkuMergeV1(source){
 (async()=>{
  const config=JSON.parse(document.getElementById('pakkom-management-loader').textContent);
  const pageUrl=new URL(document.baseURI);pageUrl.hash='';
- const [sources,identityResp,opsModuleResp]=await Promise.all([
+ const [sources,identityResp,opsModuleResp,estimateModuleResp]=await Promise.all([
   pakkomReadSourcesV2(config,pageUrl),
   fetch('management-src/sku-identity-ng-v1.js',{cache:'no-store',credentials:'omit',redirect:'error'}),
-  fetch('operations-update-v1.js',{cache:'no-store',credentials:'omit',redirect:'error'})
+  fetch('operations-update-v1.js',{cache:'no-store',credentials:'omit',redirect:'error'}),
+  fetch('estimate-view-v1.js',{cache:'no-store',credentials:'omit',redirect:'error'})
  ]);
- if(!identityResp.ok||!opsModuleResp.ok)throw Error('Identity/operations module unavailable');
- const opsModule=(await opsModuleResp.text()).trim();
+ if(!identityResp.ok||!opsModuleResp.ok||!estimateModuleResp.ok)throw Error('Identity/operations module unavailable');
+ const opsModule=(await opsModuleResp.text()).trim(),estimateModule=(await estimateModuleResp.text()).trim();
  let html=sources.base;
  const identity=(await identityResp.text()).trim(),identityBegin='/* PAKKOM_SKU_IDENTITY_NG_V1:',identityEnd="if(typeof module!=='undefined'&&module.exports)module.exports={applyPakkomSkuIdentityNgV1};";
  const ia=html.indexOf(identityBegin),ib=html.indexOf(identityEnd,ia+identityBegin.length);
@@ -117,16 +118,16 @@ function applyPakkomConfirmedSkuMergeV1(source){
  const marker='/* PAKKOM_MANAGEMENT_ACCESS_V10:';
  if(html.split(marker).length!==2)throw Error('Unknown access loader');
  const patch=[pakkomReleaseBlockV2,pakkomMergeReleaseV2,pakkomReadSourcesV2,pakkomLatestReleaseV2,applyPakkomOrdersWithCommissionV2,applyPakkomConfirmedSkuMergeV1].map(fn=>fn.toString()).join('\n');
- html=html.replace(marker,()=>patch+'\n'+opsModule+'\n'+marker);
+ html=html.replace(marker,()=>patch+'\n'+opsModule+'\n'+estimateModule+'\n'+marker);
  const updateEntry='function applyPakkomReportDataUpdateV1(source,update){';
  if(html.split(updateEntry).length!==2)throw Error('Unknown report-update entry');
- html=html.replace(updateEntry,updateEntry+"\n if(update.schema==='pakkom-operations-update-v1')return applyPakkomOperationsDataV1(source,update);");
+ html=html.replace(updateEntry,updateEntry+"\n if(update.schema==='pakkom-operations-update-v1')return applyPakkomOperationsDataV1(source,update);\n if(update.schema==='pakkom-estimate-update-v1')return applyPakkomEstimateDataV1(source,update);");
  const early='if(!r.basePayload)return html;';
  if(html.split(early).length!==2)throw Error('Unknown report content entry');
- html=html.replace(early,'if(!r.basePayload)return applyPakkomOperationalViewV1(applyPakkomOrdersWithCommissionV2(applyPakkomConfirmedSkuMergeV1(html)));');
+ html=html.replace(early,'if(!r.basePayload)return applyPakkomEstimateViewV1(applyPakkomOperationalViewV1(applyPakkomOrdersWithCommissionV2(applyPakkomConfirmedSkuMergeV1(html))));');
  const end=/return html;(\s*\}\s*function\s+display\s*\()/g;
  if((html.match(end)||[]).length!==1)throw Error('Unknown report content boundary');
- html=html.replace(end,'return applyPakkomOperationalViewV1(applyPakkomOrdersWithCommissionV2(applyPakkomConfirmedSkuMergeV1(html)));$1');
+ html=html.replace(end,'return applyPakkomEstimateViewV1(applyPakkomOperationalViewV1(applyPakkomOrdersWithCommissionV2(applyPakkomConfirmedSkuMergeV1(html))));$1');
  const refresh=/const response=await fetch\(url,[\s\S]*?const next=JSON\.parse\(match\[1\]\);validate\(next\);/g;
  if((html.match(refresh)||[]).length!==1)throw Error('Unknown report refresh loader');
  html=html.replace(refresh,'const next=await pakkomLatestReleaseV2(url);validate(next);');
