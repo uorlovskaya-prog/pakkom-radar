@@ -4,24 +4,57 @@ on:
     branches: [main]
     paths: [.github/workflows/operations-transfer.yml]
 permissions:
-  contents: read
+  contents: write
 jobs:
   transfer:
     runs-on: ubuntu-latest
     steps:
-      - name: Read staged blob for byte verification
+      - name: Verify and seal operational data
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           node --input-type=module <<'JS'
           import fs from 'node:fs';
-          const url='https://api.github.com/repos/uorlovskaya-prog/pakkom-radar/git/blobs/2c947dcdc4a888fb6522fa445080dd895e6824e5';
-          const r=await fetch(url,{headers:{Authorization:'Bearer '+process.env.GH_TOKEN,Accept:'application/vnd.github+json'}});
-          if(!r.ok)throw Error('Read failed '+r.status);
-          const d=await r.json();fs.writeFileSync('staged-public.json',Buffer.from(d.content,'base64'));
+          import crypto from 'node:crypto';
+          import zlib from 'node:zlib';
+          const api='https://api.github.com/repos/uorlovskaya-prog/pakkom-radar';
+          const headers={Authorization:'Bearer '+process.env.GH_TOKEN,Accept:'application/vnd.github+json','Content-Type':'application/json'};
+          async function request(path,body){const r=await fetch(api+path,{method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined});if(!r.ok)throw Error('GitHub request failed '+r.status);return r.json();}
+          const hash=(x,alg='sha256')=>crypto.createHash(alg).update(x).digest('hex');
+          const gitHash=x=>hash(Buffer.concat([Buffer.from('blob '+Buffer.byteLength(x)+'\0'),Buffer.from(x)]),'sha1');
+          const staged=await request('/git/blobs/2c947dcdc4a888fb6522fa445080dd895e6824e5');
+          let text=Buffer.from(staged.content,'base64').toString('utf8');
+          const changes=[[915,915,'','v'],[989,990,'M','/vY'],[1279,1279,'','/'],[1280,1281,'f','']];
+          for(const [a,b,before,after] of changes.reverse()){if(text.slice(a,b)!==before)throw Error('Transport mismatch');text=text.slice(0,a)+after+text.slice(b);}
+          if(gitHash(text)!=='008b3d02c8346bb58d535c6d818185ba9236c9d2')throw Error('Public source checksum mismatch');
+          const envelope=JSON.parse(text),compressed=Buffer.from(envelope.gzip,'base64'),plain=zlib.gunzipSync(compressed);
+          if(hash(plain)!==envelope.sha256||envelope.sha256!=='ff694745080910761fce2360a85354b9471be54856dcf1e1946ff5d6cd5159fb')throw Error('Plain update checksum mismatch');
+          const update=JSON.parse(plain);if(update.through!=='15.11.2026'||update.financialThrough!=='11.11.2026')throw Error('Unexpected period');
+          const baseBlob=await request('/git/blobs/046a8594339a2d77956babde210639b198706d34');
+          const base=Buffer.from(baseBlob.content,'base64').toString('utf8');
+          if(gitHash(base)!=='046a8594339a2d77956babde210639b198706d34')throw Error('Base checksum mismatch');
+          const match=base.match(/<script id="pakkom-sealed-release" type="application\/json">([\s\S]*?)<\/script>/);if(!match)throw Error('No current account');
+          const account=JSON.parse(match[1]).account;
+          const key=crypto.randomBytes(32),iv=crypto.randomBytes(12),cipher=crypto.createCipheriv('aes-256-gcm',key,iv);
+          cipher.setAAD(Buffer.from('pakkom-management-dashboard-v1'));
+          const encrypted=Buffer.concat([cipher.update(compressed),cipher.final()]),tag=cipher.getAuthTag();
+          const check=crypto.createDecipheriv('aes-256-gcm',key,iv);check.setAAD(Buffer.from('pakkom-management-dashboard-v1'));check.setAuthTag(tag);
+          if(!Buffer.concat([check.update(encrypted),check.final()]).equals(compressed))throw Error('AES roundtrip failed');
+          const pub=crypto.createPublicKey({key:Buffer.from(account.publicKey,'base64'),format:'der',type:'spki'});
+          const wrapped=crypto.publicEncrypt({key:pub,padding:crypto.constants.RSA_PKCS1_OAEP_PADDING,oaepHash:'sha256'},key);key.fill(0);
+          const sealed=JSON.stringify({through:update.through,payload:{iv:iv.toString('base64'),wrappedKey:wrapped.toString('base64'),ciphertext:Buffer.concat([encrypted,tag]).toString('base64'),sha256:envelope.sha256}});
+          const publicBlob=await request('/git/blobs',{content:text,encoding:'utf-8'});
+          const privateBlob=await request('/git/blobs',{content:sealed,encoding:'utf-8'});
+          if(publicBlob.sha!==gitHash(text)||privateBlob.sha!==gitHash(sealed))throw Error('Uploaded bytes differ');
+          fs.writeFileSync('operations-20261115.json',text);fs.writeFileSync('management-operations-20261115.json',sealed);
+          fs.writeFileSync('blob-manifest.json',JSON.stringify({public:publicBlob.sha,management:privateBlob.sha,plainSha256:envelope.sha256,base:'046a8594339a2d77956babde210639b198706d34'}));
+          console.log('VERIFIED_BLOBS '+fs.readFileSync('blob-manifest.json','utf8'));
           JS
       - uses: actions/upload-artifact@v4
         with:
-          name: pakkom-byte-verification
-          path: staged-public.json
+          name: pakkom-checked-operations
+          path: |
+            operations-20261115.json
+            management-operations-20261115.json
+            blob-manifest.json
           retention-days: 1
