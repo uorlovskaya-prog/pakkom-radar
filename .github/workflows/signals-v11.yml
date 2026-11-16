@@ -8,6 +8,7 @@ on:
       - '*-base-*.html'
       - data/*.json
       - management-signals-v11.js
+      - operations-update-v1.js
       - management-src/*.js
       - sku-identity-v4.js
       - ad-campaign-map-v1.json
@@ -26,6 +27,8 @@ jobs:
           node-version: '22'
       - name: Validate the current lightweight release before legacy UI tests
         run: node tests/lightweight-loaders-v2.cjs
+      - name: Operational data and unavailable finance checks
+        run: node tests/operations-update-v1.cjs
       - name: Use immutable HTML bases for legacy UI regressions in this read-only CI workspace
         run: |
           cp index-base-20261105.html index.html
@@ -42,3 +45,14 @@ jobs:
         run: node tests/profit-percent-sort-v1.cjs
       - name: Encrypted report data update
         run: node tests/report-data-update-v1.cjs
+  live:
+    needs: signals
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify both permanent Pages addresses and published bytes
+        run: node tests/lightweight-loaders-v2.cjs --live

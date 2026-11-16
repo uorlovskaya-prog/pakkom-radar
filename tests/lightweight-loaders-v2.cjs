@@ -12,7 +12,7 @@ function response(text){return {ok:true,text:async()=>text,json:async()=>JSON.pa
 async function assemble(filename,lookup=read){
  const source=lookup(filename);let output='',failure='';
  const document={baseURI:origin+filename,body:{set innerHTML(v){failure=v;}},getElementById(id){const m=source.match(new RegExp('<script id="'+id+'" type="application/json">([\\s\\S]*?)</script>'));return m?{textContent:m[1]}:null;},open(){},write(html){output+=html;},close(){}};
- const c={document,URL,DOMParser:Parser,location:{href:origin+filename},fetch:async u=>response(lookup(fileOf(u))),console};
+ const c={crypto:webcrypto,TextDecoder,Uint8Array,Blob,Response,DecompressionStream,atob,document,URL,DOMParser:Parser,location:{href:origin+filename},fetch:async u=>response(lookup(fileOf(u))),console};
  vm.createContext(c);for(const script of scripts(source))await vm.runInContext(script,c);
  assert(!failure,'Loader failed: '+failure);assert(output,'Loader produced no page');
  for(const script of scripts(output))new vm.Script(script);
@@ -87,13 +87,13 @@ async function main(){
  assert.equal(JSON.stringify(d),originalData,'Identity changed source data');
 
  for(const x of d.daily)if(Number.isFinite(x.ordersNetRub)){assert(Math.abs(x.ordersRub-x.ordersNetRub/.70)<1e-6);if(x.ordersRub)assert(Math.abs(x.drr-(Number(x.ads)||0)/x.ordersRub)<1e-9);}
- for(const [iso,qty,net,buyouts,ads] of [['2026-11-06',3539,810423.41,3161,68674],['2026-11-07',3460,806318.67,2956,74198],['2026-11-08',3649,861014.09,3185,73643],['2026-11-09',4058,952259.42,3494,74440],['2026-11-10',3693,863931.46,3294,80439],['2026-11-11',3764,865904.07,3347,83061]]){
+ for(const [iso,qty,net,buyouts,ads] of [['2026-11-06',3539,810423.41,3161,68674],['2026-11-07',3460,806318.67,2956,74198],['2026-11-08',3649,861014.09,3185,73643],['2026-11-09',4058,952259.42,3494,74440],['2026-11-10',3693,863931.46,3294,80439],['2026-11-11',4535,1042816.13,3347,83061],['2026-11-12',4316,1000234.57,3268,90170],['2026-11-13',3743,884898.27,3691,90686],['2026-11-14',3764,886618.68,3128,74162],['2026-11-15',3404,782147.49,3091,84622]]){
   const rows=d.daily.filter(r=>r.iso===iso),sum=k=>rows.reduce((s,r)=>s+(Number(r[k])||0),0);
   for(const [k,v] of Object.entries({ordersQty:qty,ordersNetRub:net,ordersRub:net/.7,buyoutsQty:buyouts,ads}))assert(Math.abs(sum(k)-v)<1e-5,iso+' '+k);
  }
  const latest=await owner.context.pakkomLatestReleaseV2(new URL(origin+'management.html'));
  assert.deepEqual(JSON.parse(JSON.stringify(latest)),r);
- console.log('PASS: both lightweight loaders execute; reporting date '+r.through+'; sealed account/base/history unchanged; Radar 06-11 November controls match');
+ console.log('PASS: both lightweight loaders execute; reporting date '+r.through+'; sealed account/base/history unchanged; Radar 06-11 November controls match; operational report through 15 November');
  await cryptoRegression(owner);
  if(process.argv.includes('--live')){
   // Wait for this exact checked commit to reach Pages; never claim a Git commit is a deployment.
@@ -116,4 +116,5 @@ async function main(){
   console.log('PASS: both permanent Pages URLs and their base/JSON dependencies return the exact verified bytes and execute through '+r.through);
  }
 }
-main().catch(e=>{console.error(e.message);process.exitCode=1;});
+module.exports={assemble,block,read,scripts,cryptoRegression};
+if(require.main===module)main().catch(e=>{console.error(e.stack||e.message);process.exitCode=1;});
