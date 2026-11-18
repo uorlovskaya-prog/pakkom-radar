@@ -88,7 +88,7 @@ function mountPakkomEstimateV1(){
  const stat=(label,value,hint)=>'<div class="pe-stat"><div class="pe-label">'+esc(label)+'</div><div class="pe-value">'+esc(value)+'</div><div class="pe-muted">'+esc(hint)+'</div></div>';
  const stats=owner?stat('ЧП выкупов · оценка',rub(checks.profitEstimate),'Выплата ±5%: '+rub(checks.profitLow)+' … '+rub(checks.profitHigh))+stat('Результат заказов · выкуп 90%',rub(checks.order90),'При 80%: '+rub(checks.order80)+' · при 95%: '+rub(checks.order95)):
  stat('Заказы за период',num(checks.ordersQty),'Сумма с комиссией: '+rub(checks.ordersRub))+stat('Выкупы из report',num(checks.buyoutsQty),'Не отдельно сверенные продажи и возвраты');
- root.innerHTML='<div class="pe-title"><h2>'+(owner?'Оценка ЧП':'Риски рекламы')+' · '+esc(model.period.label)+'</h2><span class="pe-badge">ОЦЕНКА, НЕ ФИНАНСОВЫЙ ОТЧЁТ</span><button class="pe-toggle" type="button" aria-expanded="true">Свернуть</button></div><div class="pe-body">'+
+ root.innerHTML='<div class="pe-title"><h2>'+(owner?'Оценка ЧП':'Риски рекламы')+' · '+esc(model.period.label)+'</h2><span class="pe-badge">'+(model.archivedThrough?'АРХИВ ОЦЕНКИ':'ОЦЕНКА, НЕ ФИНАНСОВЫЙ ОТЧЁТ')+'</span><button class="pe-toggle" type="button" aria-expanded="true">Свернуть</button></div><div class="pe-body">'+
  '<p class="pe-muted">'+(owner?'Два разных взгляда: прибыль выкупов за эти дни и будущий результат заказов. <b>Эти суммы нельзя складывать.</b>':'Сигналы из оценочной экономики. Они помогают ограничить неэффективную рекламу, но не заменяют финансовый отчёт.')+'</p>'+
  '<div class="pe-stats">'+stats+stat('Реклама за 12–15.11',rub(checks.ads),'ДРР '+pct(checks.ads/checks.ordersRub))+stat('SKU требуют внимания',String(riskCount),'13 рисковых + 2 пограничных')+'</div>'+
  (owner?'<p class="pe-muted">Ориентир 01–15.11: <b>'+rub(model.combinedProfit)+'</b> = '+rub(model.closedProfit)+' подтверждено по 11.11 + '+rub(checks.profitEstimate)+' оценка 12–15.11.</p>':'')+
@@ -126,6 +126,7 @@ function mountPakkomEstimateV1(){
  });
  root.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.hasAttribute('data-sort')){e.preventDefault();e.target.click();}});
  root.querySelector('.pe-search').addEventListener('input',render);root.querySelector('.pe-group').addEventListener('change',render);
+ if(model.archivedThrough){const button=root.querySelector('.pe-toggle');root.querySelector('.pe-body').hidden=true;button.textContent='Показать прежнюю оценку';button.setAttribute('aria-expanded','false');}
  root.querySelector('.pe-toggle').addEventListener('click',e=>{const body=root.querySelector('.pe-body');body.hidden=!body.hidden;e.target.textContent=body.hidden?'Показать':'Свернуть';e.target.setAttribute('aria-expanded',String(!body.hidden));});
  render();
 }

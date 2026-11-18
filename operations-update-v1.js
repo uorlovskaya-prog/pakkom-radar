@@ -78,7 +78,7 @@ function applyPakkomOperationalViewV1(source){
 function agg(rows){
  const result=pakkomFinancialAggBeforeOperationsV1(rows);
  const cutoff=String(DATA.financialThrough||'').split('.').reverse().join('-');
- const incomplete=rows.some(r=>r.operationalOnly||r.financialComplete===false||cutoff&&r.iso>cutoff);
+ const incomplete=rows.some(r=>r.operationalOnly||r.financialComplete===false||(DATA.publicOperationalFrom&&r.iso>=DATA.publicOperationalFrom)||cutoff&&r.iso>cutoff);
  if(incomplete){
   const allowed=new Set(['ordersQty','ordersRub','ordersNetRub','buyoutsQty','ads','cpo','drr','buyout','buyoutD6','avgOrdersDay','cpoStd','cpoMax','days','skuCount','rows']);
   for(const k of Object.keys(result))if(!allowed.has(k)&&typeof result[k]==='number')result[k]=null;
@@ -106,8 +106,13 @@ function pakkomFinancialAggBeforeOperationsV1(rows){`;
  const finance=/(выруч|к перечислен|себестоим|закуп|комплектац|НДС|ЧП|чистая прибыль|прибыль|ROI|маржин|сценарий|прогноз)/i;
  function setHidden(el,on){if(!el)return;if(on){if(!el.hasAttribute('data-ops-hidden')){el.dataset.opsDisplay=el.style.display||'';el.setAttribute('data-ops-hidden','1');el.style.display='none';}}else if(el.hasAttribute('data-ops-hidden')){el.style.display=el.dataset.opsDisplay||'';el.removeAttribute('data-ops-hidden');}}
  function sync(){
-  const cut=DATA.financialThrough.split('.').reverse().join('-');const partial=typeof state!=='undefined'&&state.to>cut;
-  const text=partial?'Оперативно по '+DATA.through+' · Заказы, выкупы из report, реклама и ДРР. Фактические ЧП и НДС за незакрытые дни не подтверждены. Оценки показаны отдельно, если доступны. Финансовая история сохранена по '+DATA.financialThrough+'.':'Финансовая история по '+DATA.financialThrough+'; оперативные данные доступны по '+DATA.through+'.';
+  const cut=DATA.financialThrough.split('.').reverse().join('-');const publicRange=DATA.publicOperationalFrom&&typeof state!=='undefined'&&state.to>=DATA.publicOperationalFrom;const partial=publicRange||typeof state!=='undefined'&&state.to>cut;
+  let text=publicRange?'По '+DATA.through+' · Заказы, выкупы за вычетом возвратов, реклама и ДРР.':DATA.financialPeriodId?'Финансовые отчёты WB по '+DATA.financialThrough+'. Выкупы за вычетом возвратов.':partial?'Оперативно по '+DATA.through+' · Заказы, выкупы из report, реклама и ДРР. Фактические ЧП и НДС за незакрытые дни не подтверждены. Оценки показаны отдельно, если доступны. Финансовая история сохранена по '+DATA.financialThrough+'.':'Финансовая история по '+DATA.financialThrough+'; оперативные данные доступны по '+DATA.through+'.';
+  if(DATA.financialPeriodId&&!DATA.publicOperationalFrom&&typeof state!=='undefined'&&state.from>='2026-11-12'){
+   const scope=DATA.daily.filter(r=>r.iso>=state.from&&r.iso<=state.to);
+   const total=key=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(scope.reduce((s,r)=>s+Number(r[key]||0),0))+' ₽';
+   text+=' Отдельно за выбранные даты: логистика '+total('logistics')+', штрафы '+total('penalties')+'.';
+  }
   if(banner.textContent!==text)banner.textContent=text;
   document.querySelectorAll('[data-ops-hidden]').forEach(el=>setHidden(el,false));
   const profitFilter=document.getElementById('fProfit');if(profitFilter)profitFilter.disabled=partial;
