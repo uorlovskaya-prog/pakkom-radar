@@ -92,7 +92,9 @@ async function main(){
   for(const [k,v] of Object.entries({ordersQty:qty,ordersNetRub:net,ordersRub:net/.7,buyoutsQty:buyouts,ads}))assert(Math.abs(sum(k)-v)<1e-5,iso+' '+k);
  }
  assert.equal(d.financialThrough,r.through);
- assert.equal(d.estimatesV1.archivedThrough,r.through);
+ assert.equal(d.estimatesV1,undefined);
+ for (const html of [radar.html,owner.html]) for (const marker of ['PAKKOM_ESTIMATE_MOUNT_V1','pakkomOperationsNotice','Показать прежнюю оценку','pakkomEstimatesV1']) assert(!html.includes(marker),marker);
+ assert(!config.updates.some(x=>x.includes('estimate')));
  const verified = d.daily.filter(x=>x.iso >= '2026-11-12');
  for(const x of verified){
   assert.equal(x.salesQty-x.returnsQty,x.buyoutsQty);

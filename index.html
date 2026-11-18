@@ -1,6 +1,6 @@
 <!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Пакком — SKU Radar</title><style>body{margin:0;background:#08101c;color:#e7eef8;font:14px Arial,sans-serif;display:grid;place-items:center;min-height:100vh}.s{opacity:.8}</style></head><body><div class="s">Загружаю актуальный Radar…</div><script>
 (async()=>{
- const [baseResp,up08Resp,up09Resp,up10Resp,up11Resp,guardResp,opsResp,opsModuleResp,estimateResp,estimateModuleResp,periodResp,periodModuleResp]=await Promise.all([
+ const [baseResp,up08Resp,up09Resp,up10Resp,up11Resp,guardResp,opsResp,opsModuleResp,periodResp,periodModuleResp]=await Promise.all([
   fetch('index-base-20261105.html',{cache:'no-store'}),
   fetch('data/radar-update-20261108.json',{cache:'no-store'}),
   fetch('data/radar-update-20261109.json',{cache:'no-store'}),
@@ -9,12 +9,10 @@
   fetch('sku-identity-v4.js',{cache:'no-store'}),
   fetch('data/operations-20261115.json',{cache:'no-store'}),
   fetch('operations-update-v1.js',{cache:'no-store'}),
-  fetch('data/radar-estimates-20261115.json',{cache:'no-store'}),
-  fetch('estimate-view-v1.js',{cache:'no-store'}),
   fetch('data/radar-financial-20261117.json',{cache:'no-store'}),
   fetch('financial-period-v1.js',{cache:'no-store'})
  ]);
- if(!baseResp.ok||!up08Resp.ok||!up09Resp.ok||!up10Resp.ok||!up11Resp.ok||!guardResp.ok||!opsResp.ok||!opsModuleResp.ok||!estimateResp.ok||!estimateModuleResp.ok||!periodResp.ok||!periodModuleResp.ok)throw Error('load');
+ if(!baseResp.ok||!up08Resp.ok||!up09Resp.ok||!up10Resp.ok||!up11Resp.ok||!guardResp.ok||!opsResp.ok||!opsModuleResp.ok||!periodResp.ok||!periodModuleResp.ok)throw Error('load');
  let html=await baseResp.text(),up08=await up08Resp.json(),up09=await up09Resp.json(),up10=await up10Resp.json(),up11=await up11Resp.json();
  const guard=(await guardResp.text()).trim(),guardBegin='/* PAKKOM_SKU_IDENTITY_GUARD_V4_BEGIN',guardEnd='/* PAKKOM_SKU_IDENTITY_GUARD_V4_END */';
  const ga=html.indexOf(guardBegin),gb=html.indexOf(guardEnd,ga+guardBegin.length);
@@ -33,15 +31,11 @@
  d.note='Данные по 11.11.2026. Источник report хранит сумму заказов без комиссии WB; сумма с комиссией восстановлена как ordersNetRub / 0,70.';
  const json=JSON.stringify(d).replace(/</g,'\\u003c');
  html=html.slice(0,a+open.length)+json+html.slice(b);
- const operations=new Function((await opsModuleResp.text())+';return {decode:decodePakkomOperationsEnvelopeV1,apply:applyPakkomOperationsDataV1,view:applyPakkomOperationalViewV1};')();
+ const operations=new Function((await opsModuleResp.text())+';return {decode:decodePakkomOperationsEnvelopeV1,apply:applyPakkomOperationsDataV1};')();
  const operationalUpdate=await operations.decode(await opsResp.json());
  html=operations.apply(html,operationalUpdate);
- const estimates=new Function((await estimateModuleResp.text())+';return {apply:applyPakkomEstimateDataV1,view:applyPakkomEstimateViewV1};')();
- const estimateUpdate=await operations.decode(await estimateResp.json());
- html=estimates.apply(html,estimateUpdate);
- const applyPeriod=new Function((await periodModuleResp.text())+';return applyPakkomFinancialPeriodV1;')();
- html=applyPeriod(html,await operations.decode(await periodResp.json()));
- html=estimates.view(operations.view(html));
+ const actuals=new Function((await periodModuleResp.text())+';return {apply:applyPakkomFinancialPeriodV1,radar:applyPakkomActualRadarViewV1};')();
+ html=actuals.radar(actuals.apply(html,await operations.decode(await periodResp.json()),'radar'));
  document.open();document.write(html);document.close();
 })().catch(error=>{console.error('Pakkom Radar loader:',error.message);document.body.innerHTML='<div class="s">Не удалось загрузить Radar. Обнови страницу.</div>';});
 </script></body></html>

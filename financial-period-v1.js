@@ -1,5 +1,5 @@
 /* Populate an operational date range with reconciled daily financial reports. */
-function applyPakkomFinancialPeriodV1(source, update) {
+function applyPakkomFinancialPeriodV1(source, update, expectedAudience) {
  const opening = '<script id="data" type="application/json">';
  const start = source.indexOf(opening) + opening.length;
  const end = source.indexOf('</scr' + 'ipt>', start);
@@ -8,7 +8,7 @@ function applyPakkomFinancialPeriodV1(source, update) {
  if (d.financialPeriodId === update.id) return source;
  if (d.through !== update.expectedThrough || d.financialThrough !== update.previousFinancialThrough) throw Error('Unexpected period to reconcile');
  const pub = update.audience === 'radar';
- if ((!pub && update.audience !== 'owner') || (d.estimatesV1 && d.estimatesV1.mode !== (pub ? 'signals' : 'owner'))) throw Error('Financial period audience mismatch');
+ if ((!pub && update.audience !== 'owner') || update.audience !== expectedAudience) throw Error('Financial period audience mismatch');
  const opFields = ['ordersQty', 'ordersNetRub', 'buyoutsQty', 'salesQty', 'returnsQty', 'ads', 'reportBuyoutsQty'];
  const privateFields = ['revenue', 'wbRealized', 'payout', 'cost', 'packing', 'vat', 'profit', 'prelimCost', 'prelimPacking', 'logistics', 'penalties'];
  const fields = pub ? opFields : opFields.concat(privateFields);
@@ -66,8 +66,65 @@ function applyPakkomFinancialPeriodV1(source, update) {
   target.financialThrough=update.through;
  }
  d.through=update.through;d.financialThrough=update.through;d.financialPeriodId=update.id;
- d.publicOperationalFrom=pub?from:null;
- if (d.estimatesV1) d.estimatesV1.archivedThrough=update.through;
+ d.expensesFrom=from;
  d.note='Финансовые отчёты WB по '+d.through+'. Выкупы показаны за вычетом возвратов.';
  return source.slice(0,start)+JSON.stringify(d).replace(/</g,'\\u003c')+source.slice(end);
+}
+
+/* Oleg's Radar uses the ordinary filters, dates, table and detail view. */
+function applyPakkomActualRadarViewV1(source) {
+ const opening='<script id="data" type="application/json">';
+ const start=source.indexOf(opening)+opening.length, end=source.indexOf('</scr'+'ipt>',start);
+ if(start<opening.length||end<start)throw Error('Missing public report data');
+ const data=JSON.parse(source.slice(start,end));
+ if(data.financialThrough!==data.through)throw Error('Financial reports are incomplete');
+ const operational=['date','iso','week','sku','nmId','skuKey','category','subcategory','ordersQty','ordersRub','ordersNetRub','salesQty','returnsQty','buyoutsQty','reportBuyoutsQty','ads','cpoStd','cpoMax','cpo','drr','financialComplete'];
+ const cutoff=data.expensesFrom;
+ data.daily=data.daily.map(row=>{
+  const fields=row.iso<cutoff ? operational.concat(['roi','profitPerBuyout']) : operational;
+  return Object.fromEntries(fields.filter(key=>key in row).map(key=>[key,row[key]]));
+ });
+ let html=source.slice(0,start)+JSON.stringify(data).replace(/</g,'\\u003c')+source.slice(end);
+ function once(oldValue,newValue){
+  if(html.split(oldValue).length!==2)throw Error('Unexpected Radar template: '+oldValue);
+  html=html.replace(oldValue,()=>newValue);
+ }
+ once("['ads','Реклама'],['cpo','CPO']", "['ads','Реклама'],['drr','ДРР, %'],['cpo','CPO']");
+ once("'buyout','ads','cpo','roi'", "'buyout','ads','drr','cpo','roi'");
+ once('function renderTable(){',`function historicalRatiosVisible(){return state.to<DATA.expensesFrom}
+ function radarColumns(){return historicalRatiosVisible()?COLS:COLS.filter(([key])=>key!=='roi'&&key!=='profitPerBuyout')}
+ function renderTable(){if(!historicalRatiosVisible()&&['roi','profitPerBuyout'].includes(state.sort)){state.sort='ordersQty';state.dir=-1;}`);
+ once('COLS.map(head)', 'radarColumns().map(head)');
+ html=html.replaceAll('${COLS.length}','${radarColumns().length}');
+ once('s.profitPerBuyout=pbw?pb/pbw:null;s.roi=roiw?roi/roiw:null;', 'const showRatios=rows.every(r=>r.iso<DATA.expensesFrom);s.profitPerBuyout=showRatios&&pbw?pb/pbw:null;s.roi=showRatios&&roiw?roi/roiw:null;');
+ once('<td class="num">${money(m.ads)}</td><td class="num" title=', '<td class="num">${money(m.ads)}</td><td class="num">${pct(m.drr)}</td><td class="num" title=');
+ const financeCells=m=>'<td class="num">${pct('+m+'.roi)}</td><td class="num">${money('+m+'.profitPerBuyout)}</td>';
+ for(const m of ['m','r'])once(financeCells(m),'$'+'{historicalRatiosVisible()?\`'+financeCells(m)+'\`: ""}');
+ once('<th>Реклама</th><th>CPO</th>', '<th>Реклама</th><th>ДРР</th><th>CPO</th>');
+ once('<th>ROI</th><th>ЧП / 1 выкуп</th>', "'+(historicalRatiosVisible()?'<th>ROI</th><th>ЧП / 1 выкуп</th>':'')+'");
+ once('<td class="num">${money(r.ads)}</td><td class="num">${money(r.cpo)}</td>', '<td class="num">${money(r.ads)}</td><td class="num">${pct(r.drr)}</td><td class="num">${money(r.cpo)}</td>');
+ once("kpi('ROI',pct(m.roi),'базовый период')","kpi('ДРР',pct(m.drr),'реклама / заказы с комиссией'),...(historicalRatiosVisible()?[kpi('ROI',pct(m.roi),'базовый период')]:[])");
+ return html;
+}
+
+/* Add the actual charges below the owner's existing, filtered financial KPIs. */
+function applyPakkomOwnerActualExpensesV1(source) {
+ const marker='function renderKpis(){';
+ if(!source.includes(marker)||!source.includes('"expensesFrom"'))return source;
+ const render=String.raw`function renderKpis(){
+  renderOriginalPakkomKpisV1();
+  const kpis=document.querySelector('#weekly .kpis, #weekly #kpis, #kpis');
+  if(!kpis||typeof getGroups!=='function')return;
+  let line=kpis.parentElement.querySelector('[data-pakkom-actual-expenses]');
+  if(line)line.remove();
+  if(state.from<DATA.expensesFrom||state.to>DATA.financialThrough.split('.').reverse().join('-'))return;
+  const visible=getGroups().flatMap(g=>Array.isArray(g.rows)?g.rows:[]).filter(r=>r.iso>=state.from&&r.iso<=state.to);
+  if(!visible.length||visible.some(r=>!Number.isFinite(r.logistics)||!Number.isFinite(r.penalties)))return;
+  const total=key=>visible.reduce((s,r)=>s+r[key],0).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽';
+  line=document.createElement('p');line.className='hint';line.setAttribute('data-pakkom-actual-expenses','1');
+  line.textContent='Расходы отдельно от ЧП за выбранный период и товары: логистика '+total('logistics')+', штрафы '+total('penalties')+'.';
+  kpis.after(line);
+ }
+ function renderOriginalPakkomKpisV1(){`;
+ return source.replace(marker,()=>render);
 }
