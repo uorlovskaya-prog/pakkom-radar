@@ -12,6 +12,7 @@ function applyPakkomFinancialPeriodV1(source, update, expectedAudience) {
  const opFields = ['ordersQty', 'ordersNetRub', 'buyoutsQty', 'salesQty', 'returnsQty', 'ads', 'reportBuyoutsQty'];
  const privateFields = ['revenue', 'wbRealized', 'payout', 'cost', 'packing', 'vat', 'profit', 'prelimCost', 'prelimPacking', 'logistics', 'penalties'];
  const fields = pub ? opFields : opFields.concat(privateFields);
+ const optionalEstimates = new Set(['prelimCost','prelimPacking']);
  const rows = [], seen = new Set();
  const last = update.through.split('.').reverse().join('-');
  function date(s) { return new Date(s + 'T00:00:00Z'); }
@@ -22,16 +23,16 @@ function applyPakkomFinancialPeriodV1(source, update, expectedAudience) {
   nextDay.setUTCDate(nextDay.getUTCDate()+1);
   const week = date(iso);
   week.setUTCDate(week.getUTCDate() - (week.getUTCDay()+6)%7);
-  const sums = fields.map(()=>0);
+  const sums = fields.map(()=>0), unknown = new Set();
   for (const item of values) {
-   if (item.length !== 1+fields.length || !Number.isInteger(item[0]) || !item.slice(1).every(Number.isFinite)) throw Error('Invalid reconciled financial row');
+   if (item.length !== 1+fields.length || !Number.isInteger(item[0]) || !item.slice(1).every((value,i)=>Number.isFinite(value)||(value===null&&optionalEstimates.has(fields[i])))) throw Error('Invalid reconciled financial row');
    const c = update.catalog[item[0]];
    if (!c || c.length !== 6) throw Error('Missing reconciled SKU');
    const [sku,nmId,category,subcategory,cpoStd,cpoMax] = c, skuKey = nmId ? 'NMID:'+nmId : 'NAME:'+sku.toLowerCase().trim();
    const key = iso+'|'+skuKey;
    if (seen.has(key)) throw Error('Duplicate reconciled date/SKU'); seen.add(key);
    const r = {iso,date:iso.split('-').reverse().join('.'),week:week.toISOString().slice(0,10),sku,nmId,skuKey,category,subcategory,cpoStd,cpoMax};
-   fields.forEach((f,i)=>{ r[f]=item[i+1]; sums[i]+=r[f]; });
+   fields.forEach((f,i)=>{ r[f]=item[i+1]; if(r[f]===null)unknown.add(i);else sums[i]+=r[f]; });
    if (r.salesQty-r.returnsQty!==r.buyoutsQty) throw Error('Net buyouts mismatch');
    r.ordersRub=r.ordersNetRub/0.70; r.drr=r.ordersRub?r.ads/r.ordersRub:null;
    r.cpo=r.ordersQty?r.ads/r.ordersQty:null;
@@ -40,11 +41,12 @@ function applyPakkomFinancialPeriodV1(source, update, expectedAudience) {
     r.roi=r.cost?r.profit/r.cost:null; r.margin=r.revenue?r.profit/r.revenue:null;
     r.profitPerBuyout=r.buyoutsQty?r.profit/r.buyoutsQty:null;
     r.profitBeforeAdsVat=r.payout-r.cost-r.packing;
-    r.prelimTotal=r.prelimCost+r.prelimPacking;
+    r.prelimIncomplete=r.prelimCost===null||r.prelimPacking===null;
+    r.prelimTotal=r.prelimIncomplete?null:r.prelimCost+r.prelimPacking;
    }
    rows.push(r);
   }
-  if (!values.length || check.length!==fields.length || sums.some((x,i)=>Math.abs(x-check[i])>0.011)) throw Error('Daily reconciliation failed: '+iso);
+  if (!values.length || check.length!==fields.length || sums.some((x,i)=>unknown.has(i)?check[i]!==null:!Number.isFinite(check[i])||Math.abs(x-check[i])>0.011)) throw Error('Daily reconciliation failed: '+iso);
  }
  if (!rows.length || rows.at(-1).iso!==last) throw Error('Incomplete date range');
  const from=update.days[0][0];
@@ -66,7 +68,7 @@ function applyPakkomFinancialPeriodV1(source, update, expectedAudience) {
   target.financialThrough=update.through;
  }
  d.through=update.through;d.financialThrough=update.through;d.financialPeriodId=update.id;
- d.expensesFrom=from;
+ if(!d.expensesFrom)d.expensesFrom=from;
  d.note='Финансовые отчёты WB по '+d.through+'. Выкупы показаны за вычетом возвратов.';
  return source.slice(0,start)+JSON.stringify(d).replace(/</g,'\\u003c')+source.slice(end);
 }
@@ -117,12 +119,28 @@ function applyPakkomOwnerActualExpensesV1(source) {
   if(!kpis||typeof getGroups!=='function')return;
   let line=kpis.parentElement.querySelector('[data-pakkom-actual-expenses]');
   if(line)line.remove();
-  if(state.from<DATA.expensesFrom||state.to>DATA.financialThrough.split('.').reverse().join('-'))return;
   const visible=getGroups().flatMap(g=>Array.isArray(g.rows)?g.rows:[]).filter(r=>r.iso>=state.from&&r.iso<=state.to);
-  if(!visible.length||visible.some(r=>!Number.isFinite(r.logistics)||!Number.isFinite(r.penalties)))return;
-  const total=key=>visible.reduce((s,r)=>s+r[key],0).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽';
+  const notes=[];
+  const fmt=n=>n.toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽';
+  const total=key=>fmt(visible.reduce((s,r)=>s+r[key],0));
+  if(visible.length&&state.from>=DATA.expensesFrom&&state.to<=DATA.financialThrough.split('.').reverse().join('-')&&visible.every(r=>Number.isFinite(r.logistics)&&Number.isFinite(r.penalties))){
+   notes.push('Расходы отдельно от ЧП за выбранный период и товары: логистика '+total('logistics')+', штрафы '+total('penalties')+'.');
+  }
+  const missing=visible.filter(r=>r.prelimIncomplete&&r.ordersQty>0);
+  if(missing.length){
+   const pieces=[];
+   if(visible.every(r=>Number.isFinite(r.prelimCost)||r.prelimIncomplete)&&visible.some(r=>Number.isFinite(r.prelimCost)&&r.ordersQty>0)){
+    pieces.push('закупка '+total('prelimCost'));
+   }
+   if(visible.every(r=>Number.isFinite(r.prelimPacking)||r.prelimIncomplete)&&visible.some(r=>Number.isFinite(r.prelimPacking)&&r.ordersQty>0)){
+    pieces.push('комплектация '+total('prelimPacking'));
+   }
+   if(pieces.length)notes.push('Заказанное по известным ставкам: '+pieces.join(', ')+'.');
+   notes.push('Товары без полной ставки закупки и комплектации: '+missing.map(r=>r.sku+' ('+r.ordersQty+' шт.)').join(', ')+'.');
+  }
+  if(!notes.length)return;
   line=document.createElement('p');line.className='hint';line.setAttribute('data-pakkom-actual-expenses','1');
-  line.textContent='Расходы отдельно от ЧП за выбранный период и товары: логистика '+total('logistics')+', штрафы '+total('penalties')+'.';
+  line.textContent=notes.join(' ');
   kpis.after(line);
  }
  function renderOriginalPakkomKpisV1(){`;

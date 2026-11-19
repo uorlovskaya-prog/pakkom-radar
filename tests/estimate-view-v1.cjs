@@ -30,7 +30,7 @@ async function main(){
  const salt=rand(16),iv=rand(12),password='synthetic-estimate-only';
  const material=await sub.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveKey']),wrapping=await sub.deriveKey({name:'PBKDF2',hash:'SHA-256',salt,iterations:600000},material,{name:'AES-GCM',length:256},false,['encrypt']);
  const account={kdf:'PBKDF2-SHA256',iterations:600000,salt:b64(salt),iv:b64(iv),publicKey:b64(await sub.exportKey('spki',keys.publicKey)),privateKeyCiphertext:b64(await sub.encrypt({name:'AES-GCM',iv,additionalData:enc.encode('pakkom-management-key-v1')},wrapping,await sub.exportKey('pkcs8',keys.privateKey)))};
- const actualFields=[2,70,1,1,0,10,1,100,90,80,20,4,6,40,40,8,3,2];
+ const actualFields=[2,70,1,1,0,10,1,100,90,80,20,4,6,40,null,null,3,2];
  const actual={schema:'pakkom-financial-period-v1',audience:'owner',id:'actual',expectedThrough:'15.11.2026',previousFinancialThrough:'11.11.2026',through:'12.11.2026',catalog:[['Synthetic 25 шт','1','A','B',1,2]],days:[['2026-11-12',[[0,...actualFields]],actualFields]]};
  const release={schema:'pakkom-management-sealed-v1',through:actual.through,account,basePayload:await seal(frame),payload:await seal(JSON.stringify(actual)),payloadFormat:'pakkom-management-data-update-v1',previousUpdates:[]};
  const els=new Map(),el=id=>{if(!els.has(id))els.set(id,{textContent:'',value:'',checked:false,hidden:false,disabled:false,setAttribute(){},removeAttribute(){},focus(){}});return els.get(id);};
@@ -44,7 +44,7 @@ async function main(){
  await new Promise(r=>setTimeout(r,20));el('password').value=password;await el('login').onsubmit({preventDefault(){}});
  assert(el('board').srcdoc,'Synthetic financial login did not open: '+el('message').textContent);
  const opened=block(el('board').srcdoc,'data');assert.equal(opened.estimatesV1,undefined);assert.equal(opened.daily[0].profit,40);assert.equal(opened.daily[0].vat,6);
- assert.equal(opened.daily[0].logistics,3);assert.equal(opened.daily[0].penalties,2);
+ assert.equal(opened.daily[0].prelimTotal,null);assert.equal(opened.daily[0].prelimIncomplete,true);assert.equal(opened.daily[0].logistics,3);assert.equal(opened.daily[0].penalties,2);
  assert(!el('board').srcdoc.includes('PAKKOM_ESTIMATE_MOUNT_V1'));assert.equal(el('password').value,'');
  console.log('PASS: archived estimate history, actual encrypted financial login, no active estimate or provisional view');
 

@@ -87,11 +87,15 @@ async function main(){
  assert.equal(JSON.stringify(d),originalData,'Identity changed source data');
 
  for(const x of d.daily)if(Number.isFinite(x.ordersNetRub)){assert(Math.abs(x.ordersRub-x.ordersNetRub/.70)<1e-6);if(x.ordersRub)assert(Math.abs(x.drr-(Number(x.ads)||0)/x.ordersRub)<1e-9);}
- for(const [iso,qty,net,buyouts,ads] of [['2026-11-06',3539,810423.41,3161,68674],['2026-11-07',3460,806318.67,2956,74198],['2026-11-08',3649,861014.09,3185,73643],['2026-11-09',4058,952259.42,3494,74440],['2026-11-10',3693,863931.46,3294,80439],['2026-11-11',4535,1042816.13,3347,83061],['2026-11-12',4316,1000234.57,3268,90170],['2026-11-13',3743,884898.27,3691,90686],['2026-11-14',3764,886618.68,3128,74162],['2026-11-15',4082,950357.69,3112,84622],['2026-11-16',4290,994864.45,3599,92471],['2026-11-17',4086,950259.47,3346,80481]]){
+ for(const [iso,qty,net,buyouts,ads] of [['2026-11-06',3539,810423.41,3161,68674],['2026-11-07',3460,806318.67,2956,74198],['2026-11-08',3649,861014.09,3185,73643],['2026-11-09',4058,952259.42,3494,74440],['2026-11-10',3693,863931.46,3294,80439],['2026-11-11',4535,1042816.13,3347,83061],['2026-11-12',4316,1000234.57,3268,90170],['2026-11-13',3743,884898.27,3691,90686],['2026-11-14',3764,886618.68,3128,74162],['2026-11-15',4082,950357.69,3112,84622],['2026-11-16',4290,994864.45,3599,92471],['2026-11-17',4086,950259.47,3346,80481],['2026-11-18',3243,751220.95,3192,90240]]){
   const rows=d.daily.filter(r=>r.iso===iso),sum=k=>rows.reduce((s,r)=>s+(Number(r[k])||0),0);
   for(const [k,v] of Object.entries({ordersQty:qty,ordersNetRub:net,ordersRub:net/.7,buyoutsQty:buyouts,ads}))assert(Math.abs(sum(k)-v)<1e-5,iso+' '+k);
  }
- assert.equal(d.financialThrough,r.through);
+ assert.equal(d.financialThrough,r.through);assert.equal(d.expensesFrom,'2026-11-12');
+ const november=d.daily.filter(x=>x.iso.startsWith('2026-11-'));
+ const sum=(rs,k)=>rs.reduce((s,x)=>s+Number(x[k]||0),0);
+ for(const [k,v] of Object.entries({ordersQty:67283,ordersRub:22337790.92857143,buyoutsQty:58798,ads:1521848}))assert(Math.abs(sum(november,k)-v)<.001,'November '+k);
+ assert.equal(sum(november.filter(x=>x.iso==='2026-11-18'),'reportBuyoutsQty'),3168);
  assert.equal(d.estimatesV1,undefined);
  for (const html of [radar.html,owner.html]) for (const marker of ['PAKKOM_ESTIMATE_MOUNT_V1','pakkomOperationsNotice','Показать прежнюю оценку','pakkomEstimatesV1']) assert(!html.includes(marker),marker);
  assert(!config.updates.some(x=>x.includes('estimate')));
@@ -102,7 +106,7 @@ async function main(){
  }
  const latest=await owner.context.pakkomLatestReleaseV2(new URL(origin+'management.html'));
  assert.deepEqual(JSON.parse(JSON.stringify(latest)),r);
- console.log('PASS: both lightweight loaders execute; reporting date '+r.through+'; sealed account/base/history unchanged; Radar 06-11 November controls match; reconciled report through 17 November');
+ console.log('PASS: both lightweight loaders execute; reporting date '+r.through+'; sealed account/base/history unchanged; Radar 06-11 November controls match; reconciled report through 18 November');
  await cryptoRegression(owner);
  if(process.argv.includes('--live')){
   // Wait for this exact checked commit to reach Pages; never claim a Git commit is a deployment.
